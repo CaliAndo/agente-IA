@@ -20,3 +20,32 @@ Antes de ejecutar el bot, asegúrate de tener lo siguiente:
    ```bash
    git clone https://github.com/Jramirezzz/agente-IA.git
    cd nombre-del-repositorio
+   ```
+
+   1. **Instala las dependencias**:
+
+   ```bash
+   npm install
+   ```
+   
+   
+3. **Configura las variables de entorno**:
+    ```bash
+   PORT=3000
+    TWILIO_ACCOUNT_SID=tu_account_sid
+    TWILIO_AUTH_TOKEN=tu_auth_token
+    VERIFY_TOKEN=tu_token_de_verificacion
+   ```
+4. **Configura ngrok**:
+    ```bash
+   npx ngrok http 3000
+   ```
+
+    
+   
+
+   
+
+   
+
+   
