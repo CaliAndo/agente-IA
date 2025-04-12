@@ -18,5 +18,5 @@ Antes de ejecutar el bot, asegúrate de tener lo siguiente:
 1. **Clona este repositorio**:
 
    ```bash
-   git clone [https://github.com/tu-usuario/nombre-del-repositorio.git](https://github.com/Jramirezzz/agente-IA.git)
+   git clone https://github.com/Jramirezzz/agente-IA.git
    cd nombre-del-repositorio
