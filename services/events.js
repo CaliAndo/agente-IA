@@ -13,7 +13,6 @@ const getEvents = async () => {
       }
     });
 
-    console.log('✅ Eventos recibidos:', response.data.events_results);
     return response.data.events_results || [];
   } catch (error) {
     console.error('❌ Error al buscar eventos:', error.message);
