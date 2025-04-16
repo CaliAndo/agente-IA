@@ -1,0 +1,54 @@
+{
+  "imperdibles": [
+    {
+      "title": "La Colina, made in 1942",
+      "link": "https://www.visitcali.travel/la-colina-made-in-1942/"
+    },
+    {
+      "title": "La Linterna, imprimiendo nostalgia desde hace casi un siglo",
+      "link": "https://www.visitcali.travel/la-linterna-imprimiendo-nostalgia-desde-hace-casi-un-siglo/"
+    },
+    {
+      "title": "Antaño Cervecería, sabor a libertad",
+      "link": "https://www.visitcali.travel/antano-cerveceria-sabor-a-libertad/"
+    },
+    {
+      "title": "Kreenty Movimiento, hotel 100 % adaptado para movilidad reducida",
+      "link": "https://www.visitcali.travel/krennty-movimiento-hotel-movilidad-reducida/"
+    },
+    {
+      "title": "BC Coffe Company, café de especialidad",
+      "link": "https://www.visitcali.travel/bc-coffe-company-cafe-de-especialidad/"
+    },
+    {
+      "title": "Domingo de Vereda, conexión del territorio y el paladar",
+      "link": "https://www.visitcali.travel/domingo-de-vereda/"
+    }
+  ],
+  "museos": [
+    {
+      "title": "Casa de los Títeres",
+      "link": "https://www.visitcali.travel/museo/casa-de-los-titeres/"
+    },
+    {
+      "title": "Fundación Museo del Vinagre",
+      "link": "https://www.visitcali.travel/museo/fundacion-museo-del-vinagre/"
+    },
+    {
+      "title": "Museo Caliwood",
+      "link": "https://www.visitcali.travel/museo/museo-caliwood/"
+    },
+    {
+      "title": "Museo Carlos Zuluaga",
+      "link": "https://www.visitcali.travel/museo/museo-carlos-zuluaga/"
+    },
+    {
+      "title": "Museo Hernando Tejada",
+      "link": "https://www.visitcali.travel/museo/museo-hernando-tejada/"
+    },
+    {
+      "title": "Museo La Tertulia",
+      "link": "https://www.visitcali.travel/museo/museo-la-tertulia/"
+    }
+  ]
+}
