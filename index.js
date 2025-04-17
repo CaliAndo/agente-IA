@@ -4,8 +4,8 @@ const twilio = require('twilio');
 const fs = require('fs');
 
 const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
-const { detectarCategoria } = require('./services/categories');
 const { getEventosSerpAPI } = require('./services/serpAPI/events');
+const { detectarIntencion, buscarRecomendaciones } = require('./services/intencionHandler');
 
 const app = express();
 app.use(express.urlencoded({ extended: false }));
@@ -14,18 +14,6 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const sessionData = {};
 const eventosCache = {}; // { numero: { lista: [], pagina: 0 } }
-
-let imperdibles = [];
-let museos = [];
-
-try {
-  const rawData = fs.readFileSync('./data/caliEventos.json', 'utf8');
-  const json = JSON.parse(rawData);
-  imperdibles = json.imperdibles || [];
-  museos = json.museos || [];
-} catch (e) {
-  console.error('❌ No se pudo leer caliEventos.json:', e.message);
-}
 
 app.post('/webhook', async (req, res) => {
   const mensaje = req.body.Body?.toLowerCase() || '';
@@ -52,40 +40,21 @@ app.post('/webhook', async (req, res) => {
       if (significado) {
         twiml.message(`📖 ${significado}`);
       } else {
-        twiml.message('🤔 No encontré una definición clara, prueba con otra palabra.');
+        twiml.message('🤔 No encontré una definición clara. Prueba con otra palabra.');
       }
 
-    } else if (mensaje.includes('comer') || mensaje.includes('comida')) {
-      twiml.message(`😋 ¿Qué tipo de comida te provoca hoy?\n\n1️⃣ Comida típica caleña\n2️⃣ Casual y económica\n3️⃣ Gourmet o romántica\n4️⃣ Con buena vista o ambiente`);
-
-    } else if (mensaje.includes('cultura') || mensaje.includes('arte')) {
-      const eventos = museos.map(e => `🏛️ ${e.title}\n🔗 ${e.link}`);
-      twiml.message(`🎨 ¡Plan cultural activado! Aquí tienes algunos museos en Cali:\n\n${eventos.slice(0, 5).join('\n\n')}\n\n👈 Escribe 'volver' para regresar al menú.`);
-
-    } else if (mensaje.includes('eventos')) {
-      const serpEventos = await getEventosSerpAPI();
-      const todosEventos = [
-        ...serpEventos.map(e => `🎫 ${e.title} (${e.date || 'Fecha no disponible'})\n${e.link || ''}`),
-        ...imperdibles.map(e => `📌 ${e.title}\n🔗 ${e.link}`)
-      ];
-
-      eventosCache[numero] = { lista: todosEventos, pagina: 0 };
-      const primeros = todosEventos.slice(0, 5).join('\n\n');
-
-      twiml.message(`🎉 Eventos en Cali:\n\n${primeros}\n\n👉 Responde con *ver mas* para seguir viendo o *volver* para regresar.`);
-
-    } else if (mensaje.includes('ver mas')) {
+    } else if (mensaje.includes('ver mas') || mensaje.includes('ver más')) {
       const cache = eventosCache[numero];
       if (!cache) {
-        twiml.message('ℹ️ Primero escribe *eventos* para ver la lista disponible.');
+        twiml.message('ℹ️ Primero dime qué te gustaría hacer (por ejemplo: “quiero un tour”, “deseo comer algo típico”).');
       } else {
         const inicio = (cache.pagina + 1) * 5;
         const nuevos = cache.lista.slice(inicio, inicio + 5);
         if (nuevos.length > 0) {
           cache.pagina++;
-          twiml.message(`📍 ver mas:\n\n${nuevos.join('\n\n')}\n\n👉 Escribe *ver mas* para seguir o *volver* para regresar.`);
+          twiml.message(`📍 Más recomendaciones para ti:\n\n${nuevos.join('\n\n')}\n\n👉 Escribe *ver más* para continuar o *volver* para regresar.`);
         } else {
-          twiml.message('📭 Ya viste todos los eventos disponibles. ¡Pronto habrá más!');
+          twiml.message('📭 Ya viste todas las recomendaciones disponibles. ¡Pronto habrá más!');
         }
       }
 
@@ -95,7 +64,19 @@ app.post('/webhook', async (req, res) => {
 
     } else {
       sessionData[numero] = undefined;
-      twiml.message(`👋 ¡Hola! Soy *CaliAndo*. ¿Qué quieres hacer hoy en Cali?\n\n- *comer* 🍽️\n- *cultura* 🎭\n- *eventos* 🎫\n- *diccionario* 📖`);
+
+      const intencion = detectarIntencion(mensaje);
+      if (intencion) {
+        const recomendaciones = buscarRecomendaciones(intencion).slice(0, 5);
+        if (recomendaciones.length > 0) {
+          eventosCache[numero] = { lista: buscarRecomendaciones(intencion), pagina: 0 };
+          twiml.message(`🔎 Aquí tienes algunas recomendaciones según lo que mencionaste:\n\n${recomendaciones.join('\n\n')}\n\n👉 Escribe *ver más* para seguir viendo o *volver* para regresar.`);
+        } else {
+          twiml.message('🤔 ¡Te entendí, pero aún no tengo contenido para eso! Puedes intentar con otra palabra como *tour*, *evento* o *comida*.');
+        }
+      } else {
+        twiml.message(`👋 ¡Hola! Soy CaliAndo y estoy aquí para ayudarte a descubrir lo mejor de Cali. Cuéntame qué te gustaría hacer hoy: ¿te antoja algo cultural, quieres parchar con amigos o recorrer lugares nuevos? Estoy listo para mostrarte lo que esta ciudad sabrosa tiene para ti 💃`);
+      }
     }
   } catch (error) {
     console.error('💥 Error inesperado en el webhook:', error);
