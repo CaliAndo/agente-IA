@@ -1,0 +1,47 @@
+[
+  {
+    "pagina": 61,
+    "titulo": "Capital Mundial de la Salsa",
+    "contenido": [
+      "Con más de 120 escuelas de salsa, múltiples campeones mundiales y miles de bailarines expertos, aprender a bailar la salsa caleña es uno de los principales planes en Cali. Se pueden encontrar clases grupales desde COP $30.000 y personalizadas desde COP $60.000, según la escuela y tipo de experiencia.",
+      "La salsa en Cali es el resultado de una evolución cultural que llevó a la creación de un estilo de baile propio, hoy en día considerado Patrimonio Inmaterial de Colombia. Eventos como la Feria de Cali son reconocidos mundialmente.",
+      {
+        "subtitulo": "Shows de Salsa Caleña Clase Mundial",
+        "shows_destacados": [
+          {
+            "nombre": "Delirio y Paseo de la Aurora",
+            "descripcion": "Un show único basado en la cultura popular caleña que se ha convertido en un símbolo de ciudad. Ideal para compartir en familia y disfrutar de la magia de la salsa circo, cerca al Centro de Eventos Valle del Pacífico."
+          },
+          {
+            "nombre": "Ensálsate",
+            "descripcion": "Espectáculo innovador que combina diversos géneros y ritmos alrededor de la salsa, con un deslumbrante juego de luces y protagonizado por algunos de los mejores bailarines del mundo."
+          },
+          {
+            "nombre": "Mulato Cabaret",
+            "descripcion": "Casa del grupo Swing Latino, con el mayor número de títulos mundiales de salsa y reconocimiento internacional."
+          }
+        ]
+      },
+      {
+        "subtitulo": "Museo de la Salsa",
+        "descripcion": "Un museo fotográfico donde se cuenta la historia de la salsa en Cali y en el exterior. Incluye más de 40.000 fotografías que recorren Cuba, Puerto Rico, Venezuela, Nueva York y el Caribe."
+      },
+      {
+        "subtitulo": "Discotecas para Salseros",
+        "lugares": [
+          "La Topa Tolondra",
+          "Zaperoco Bar",
+          "Tintindeo",
+          "Siboney Club-Discoteca",
+          "Mala Maña Salsa Bar",
+          "Rumbavana Club",
+          "La Social Cali"
+        ]
+      },
+      {
+        "subtitulo": "Barrio Obrero",
+        "descripcion": "Fundado en 1919 por artesanos, obreros y trabajadores del ferrocarril, el Barrio Obrero es el corazón de Cali salsera. Allí se vive y se siente la historia musical que late a ritmo de 33 a 45 rpm."
+      }
+    ]
+  }
+]
