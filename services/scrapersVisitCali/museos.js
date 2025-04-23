@@ -1,14 +1,27 @@
 const fetch = require('node-fetch');
 const cheerio = require('cheerio');
-const fs = require('fs');
+const { Pool } = require('pg');
+const cron = require('node-cron');
 require('dotenv').config();
 
-const apiKey = process.env.SCRAPERAPI_KEY;
+// Configuración PostgreSQL
+const pool = new Pool({
+  host: process.env.PG_HOST,
+  port: process.env.PG_PORT,
+  database: process.env.PG_DATABASE,
+  user: process.env.PG_USER,
+  password: process.env.PG_PASSWORD
+});
+
+// URL fuente
+const pageUrl = 'https://www.visitcali.travel/museos-y-teatros/';
 
 async function scrapeMuseos() {
-  const url = 'https://www.visitcali.travel/museos-y-teatros/';
-  const encodedUrl = encodeURIComponent(url);
+  const apiKey = process.env.SCRAPERAPI_KEY;
+  const encodedUrl = encodeURIComponent(pageUrl);
   const fullUrl = `https://api.scraperapi.com/?api_key=${apiKey}&url=${encodedUrl}&render=true&country_code=co`;
+
+  console.log(`🌐 Haciendo fetch a: ${fullUrl}`);
 
   try {
     const res = await fetch(fullUrl);
@@ -25,21 +38,30 @@ async function scrapeMuseos() {
       }
     });
 
-    console.log('🏛️ Museos encontrados:\n');
-    museos.forEach((item, i) => {
-      console.log(`${i + 1}. ${item.title}`);
-      console.log(`🔗 ${item.link}\n`);
-    });
+    console.log(`🏛️ Se encontraron ${museos.length} museos.`);
 
-    fs.writeFileSync('./data/museos.json', JSON.stringify(museos, null, 2));
-    console.log('✅ Guardado en ./data/museos.json');
+    let insertados = 0;
+    for (const item of museos) {
+      const query = `
+        INSERT INTO eventos (nombre, descripcion, fecha, ubicacion, categoria, fuente)
+        VALUES ($1, '', null, $2, $3, $4)
+        ON CONFLICT DO NOTHING
+      `;
+      await pool.query(query, [item.title, item.link, 'museo', pageUrl]);
+      insertados++;
+    }
 
-    return museos;
+    console.log(`✅ ${insertados} museos insertados en la base de datos con fuente incluida.`);
   } catch (err) {
-    console.error('❌ Error al hacer scraping:', err.message);
-    return [];
+    console.error('❌ Error en scrapeMuseos:', err.message);
   }
 }
 
-// 👉 Exportamos para usarlo desde el data collector
-module.exports = scrapeMuseos;
+// Ejecutar inmediatamente
+scrapeMuseos();
+
+// Programar cada 24h (medianoche)
+cron.schedule('0 0 * * *', () => {
+  console.log('🕛 Ejecutando scrapeMuseos programado...');
+  scrapeMuseos();
+});
