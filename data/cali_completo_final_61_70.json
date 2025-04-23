@@ -1,0 +1,280 @@
+[
+  {
+    "pagina": 61,
+    "titulo": "Capital Mundial de la Salsa",
+    "contenido": [
+      "Con más de 120 escuelas de salsa, múltiples campeones mundiales y miles de bailarines expertos, aprender a bailar la salsa caleña es uno de los principales planes en Cali. Se pueden encontrar clases grupales desde COP $30.000 y personalizadas desde COP $60.000, según la escuela y tipo de experiencia.",
+      "La salsa en Cali es el resultado de una evolución cultural que llevó a la creación de un estilo de baile propio, hoy en día considerado Patrimonio Inmaterial de Colombia. Eventos como la Feria de Cali son reconocidos mundialmente.",
+      {
+        "subtitulo": "Shows de Salsa Caleña Clase Mundial",
+        "shows_destacados": [
+          {
+            "nombre": "Delirio y Paseo de la Aurora",
+            "descripcion": "Un show único basado en la cultura popular caleña que se ha convertido en un símbolo de ciudad. Ideal para compartir en familia y disfrutar de la magia de la salsa circo, cerca al Centro de Eventos Valle del Pacífico."
+          },
+          {
+            "nombre": "Ensálsate",
+            "descripcion": "Espectáculo innovador que combina diversos géneros y ritmos alrededor de la salsa, con un deslumbrante juego de luces y protagonizado por algunos de los mejores bailarines del mundo."
+          },
+          {
+            "nombre": "Mulato Cabaret",
+            "descripcion": "Casa del grupo Swing Latino, con el mayor número de títulos mundiales de salsa y reconocimiento internacional."
+          }
+        ]
+      },
+      {
+        "subtitulo": "Museo de la Salsa",
+        "descripcion": "Un museo fotográfico donde se cuenta la historia de la salsa en Cali y en el exterior. Incluye más de 40.000 fotografías que recorren Cuba, Puerto Rico, Venezuela, Nueva York y el Caribe."
+      },
+      {
+        "subtitulo": "Discotecas para Salseros",
+        "lugares": [
+          "La Topa Tolondra",
+          "Zaperoco Bar",
+          "Tintindeo",
+          "Siboney Club-Discoteca",
+          "Mala Maña Salsa Bar",
+          "Rumbavana Club",
+          "La Social Cali"
+        ]
+      },
+      {
+        "subtitulo": "Barrio Obrero",
+        "descripcion": "Fundado en 1919 por artesanos, obreros y trabajadores del ferrocarril, el Barrio Obrero es el corazón de Cali salsera. Allí se vive y se siente la historia musical que late a ritmo de 33 a 45 rpm."
+      }
+    ]
+  },
+  {
+    "pagina": 62,
+    "titulo": "Entretenimiento, Hospedaje y Compras",
+    "contenido": [
+      {
+        "subtitulo": "Vida Nocturna",
+        "descripcion": "La Pérgola Clandestina, ubicada en el centro de Cali, fue reconocida como uno de los 100 mejores clubes nocturnos del mundo por la International Nightlife Association, ocupando el puesto #50 global y el #1 en Colombia."
+      },
+      {
+        "subtitulo": "Hospedajes Recomendados",
+        "lugares": [
+          "Hotel Intercontinental",
+          "Hotel Marriot",
+          "Hotel Dann Carlton",
+          "Araucana Ecolodge",
+          "Alko Hoteles",
+          "Rossa Palma",
+          "Faranda Collection",
+          "Spiwak"
+        ]
+      },
+      {
+        "subtitulo": "Centros Comerciales",
+        "descripcion": "Cali cuenta con una amplia variedad de tiendas, boutiques y centros comerciales. Algunos de los más destacados son:",
+        "lugares": [
+          "Centro Comercial Chipichape",
+          "Jardín Plaza",
+          "Unicentro",
+          "Mall Plaza"
+        ]
+      },
+      {
+        "subtitulo": "Bares y Discotecas Reconocidas",
+        "lugares": [
+          "La Pérgola",
+          "Delirio",
+          "Paseo de la Aurora",
+          "El Mulato",
+          "El Pedazo",
+          "Ensálsate",
+          "La Topa Tolondra",
+          "Zaperoco",
+          "Zorro Azul",
+          "Donde Fabio",
+          "Punto Baré"
+        ]
+      }
+    ]
+  },
+  {
+    "pagina": 63,
+    "titulo": "Cultura y Museos",
+    "contenido": [
+      "Cali ha sido premiada como 'Destino Cultural de Sudamérica' en los World Travel Awards debido a su amplia oferta cultural, artística, patrimonial y musical.",
+      "Una ciudad que cuenta con un Patrimonio Histórico e Inmaterial incalculable en sus diferentes atractivos urbanos.",
+      {
+        "subtitulo": "Museos y Teatros Destacados",
+        "lugares": [
+          "Teatro Municipal",
+          "Teatro Jorge Isaacs",
+          "Museo de Arte la Merced",
+          "Museo del Oro",
+          "Museo Libre",
+          "Museo de Ciencias Naturales",
+          "Museo del Deporte",
+          "Museo Arqueológico (MUSA)",
+          "Casa de las Memorias del Conflicto y la Reconciliación",
+          "Museo Cañasgordas",
+          "Planetario",
+          "Biblioteca Departamental Jorge Garcés Borrero",
+          "Museo Libre de Arte Público de Colombia (MULI)"
+        ]
+      },
+      {
+        "subtitulo": "Caliwood",
+        "descripcion": "Fundado en los años 70, fue un cineclub que evolucionó en museo cinematográfico y se convirtió en el epicentro del cine nacional."
+      },
+      {
+        "subtitulo": "Museo La Tertulia",
+        "descripcion": "El museo más conocido por su arquitectura frente al río y su colección de arte moderno, con permanente actividad cultural."
+      }
+    ]
+  },
+  {
+    "pagina": 64,
+    "titulo": "Eventos y Festivales",
+    "contenido": [
+      {
+        "eventos": [
+          "Mundial de la Salsa",
+          "Festival Internacional de Ballet",
+          "Ajazzgo - Encuentro de Creadores de Jazz Fusión y Experimental",
+          "Fiesta de Macetas (JUN)",
+          "Feria Internacional del Libro",
+          "Festival Internacional del Cine",
+          "Encuentro de Danzas Folclóricas Mercedes Montaño (JUL)",
+          "Festival de Música del Pacífico Petronio Álvarez (AGO)",
+          "Festival Internacional de Poesía",
+          "Festival Internacional de Teatro",
+          "Feria de Cali (DIC)"
+        ]
+      }
+    ]
+  },
+  {
+    "pagina": 65,
+    "titulo": "Rutas Naturales: Vuelta de Occidente",
+    "contenido": [
+      {
+        "subtitulo": "Puntos de la Ruta",
+        "rutas": [
+          "1. Andes",
+          "2. Pichindé",
+          "3. La Leonera",
+          "4. Felidia",
+          "5. Saladito",
+          "6. La Elvira",
+          "7. Kilómetro 18"
+        ]
+      },
+      {
+        "subtitulo": "Descripción General",
+        "descripcion": "Una de las principales rutas ecoturísticas del país, ideal para avistamiento de aves, tours cafeteros, naturaleza y miradores."
+      }
+    ]
+  },
+  {
+    "pagina": 66,
+    "titulo": "Ruta de la Montaña",
+    "contenido": [
+      {
+        "subtitulo": "Corregimientos",
+        "lugares": [
+          "Pance: balnearios, gastronomía, ciclismo, Ecoparque, veredas",
+          "Villacarmelo: spas naturales, cascadas, reservas como Bachué y Bosque Colibrí",
+          "La Buitrera: destacada por Charco Azul, piscina natural tras caminata"
+        ]
+      },
+      "La ruta ofrece balnearios, senderos, centros de bienestar, gastronomía y mercados campesinos."
+    ]
+  },
+  {
+    "pagina": 67,
+    "titulo": "Turismo Natural y Rural",
+    "contenido": [
+      "Cali posee un 75% de territorio rural.",
+      {
+        "datos": {
+          "especies_aves": 562,
+          "especies_mariposas": 193,
+          "corregimientos_con_fauna_flora": 15,
+          "rios": 7,
+          "parque_nacional": "Farallones de Cali"
+        }
+      },
+      "Destino líder en turismo de avistamiento de aves a nivel nacional e internacional."
+    ]
+  },
+  {
+    "pagina": 68,
+    "titulo": "Otros Destinos Naturales",
+    "contenido": [
+      {
+        "subtitulo": "Hacienda La Gloria",
+        "descripcion": "Sitio recreacional a 10 minutos de Cali para disfrutar la naturaleza, juegos y comida local."
+      },
+      {
+        "subtitulo": "Zoológico de Cali",
+        "descripcion": "Refugio para más de 2.500 animales, con enfoque educativo y recreativo."
+      },
+      {
+        "subtitulo": "Jardín Botánico de Cali",
+        "descripcion": "12 hectáreas de bosque tropical para avistamiento de fauna y flora."
+      },
+      {
+        "subtitulo": "Museo Orquideorama",
+        "descripcion": "Museo vivo de orquídeas con entrada libre."
+      },
+      {
+        "subtitulo": "Mariposario Andoke",
+        "descripcion": "15 especies de mariposas, incluye experiencia con capullos. Precio entre COP $25.000 y $65.000."
+      }
+    ]
+  },
+  {
+    "pagina": 69,
+    "titulo": "Zonas Gastronómicas de Cali",
+    "contenido": [
+      {
+        "zonas": [
+          "Granada: Platillos Voladores, El Ringlete, Cantina La 15",
+          "San Antonio: Waunana, Antigua, Criollan Lovers",
+          "Ciudad Jardín: famosa por su sancocho y oferta de comida típica"
+        ]
+      },
+      {
+        "subtitulo": "Platos Típicos",
+        "platos": [
+          "Champús",
+          "Cholado",
+          "Pandebono",
+          "Marranitas",
+          "Aborrajados",
+          "Lulada",
+          "Chontaduro",
+          "Chuleta de cerdo"
+        ]
+      }
+    ]
+  },
+  {
+    "pagina": 70,
+    "titulo": "Más Experiencias Gastronómicas",
+    "contenido": [
+      {
+        "zonas": [
+          "El Peñón: Krost Bakery, Hacienda del Bosque",
+          "Galería Alameda: mejor opción para probar comida pacífica",
+          "Parque del Perro y Parque del Triángulo: oferta diversa, bares, comida informal",
+          "Canchas Panamericanas: conocida por su cholado",
+          "Calle 9 y Pance: food trucks, café, fiambre"
+        ]
+      },
+      {
+        "subtitulo": "Cerca de Cali",
+        "lugares": [
+          "Dapa: La Barra de la Cabaña, Café de las Hadas",
+          "Kilómetro 18: Araucana Lodge, Mamma Mia",
+          "Rozo: Tardes Caleñas, La Tinaja"
+        ]
+      }
+    ]
+  }
+]

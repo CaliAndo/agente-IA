@@ -1,11 +1,17 @@
-// 📁 services/serpAPI/events.js
+// 📁 services/serpAPI/serpapi_eventFetcher.js
 require('dotenv').config();
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const cron = require('node-cron');
 
-async function getEventosSerpAPI() {
-  const apiKey = process.env.SERPAPI_KEY;
+const filePath = path.join(__dirname, '../../data/serpapi_eventos.json');
+const apiKey = process.env.SERPAPI_KEY;
 
+async function fetchAndSaveEventos() {
   try {
+    console.log('🔎 Consultando eventos desde SerpAPI...');
+
     const response = await axios.get('https://serpapi.com/search.json', {
       params: {
         engine: 'google_events',
@@ -17,17 +23,24 @@ async function getEventosSerpAPI() {
     });
 
     const eventos = response.data.events_results || [];
-    return eventos.map(ev => ({
+
+    const formatoFinal = eventos.map(ev => ({
       title: ev.title,
       date: ev.date?.start_date || '',
       location: ev.address || '',
       description: ev.description || '',
       link: ev.link || ''
     }));
+
+    fs.writeFileSync(filePath, JSON.stringify(formatoFinal, null, 2));
+    console.log(`✅ ${formatoFinal.length} eventos guardados en ${filePath}\n`);
   } catch (error) {
-    console.error('❌ Error en getEventosSerpAPI:', error.message);
-    return [];
+    console.error('❌ Error al obtener eventos de SerpAPI:', error.message);
   }
 }
 
-module.exports = { getEventosSerpAPI }; // 👈 importante que sea un objeto con la función
+// Ejecutar inmediatamente
+fetchAndSaveEventos();
+
+// Programar para que corra cada 24 horas (a medianoche)
+cron.schedule('0 0 * * *', fetchAndSaveEventos);

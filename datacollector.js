@@ -1,15 +1,13 @@
 const fs = require('fs');
 const path = require('path');
-
-// 📥 Importamos scrapers individuales
 const scrapeImperdibles = require('./services/scrapersVisitCali/imperdibles');
 const scrapeMuseos = require('./services/scrapersVisitCali/museos');
-
+const { getEventosSerpAPI } = require('./services/serpAPI/getEventosRaw');
+const insertarEventos = require('./services/db/insertEventos');
 
 async function runDataCollector() {
   console.log('🚀 Iniciando recopilación de datos...\n');
 
-  // ✅ Asegurarse de que exista la carpeta 'data'
   const dataDir = path.join(__dirname, 'data');
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir);
@@ -18,15 +16,20 @@ async function runDataCollector() {
 
   const imperdibles = await scrapeImperdibles();
   const museos = await scrapeMuseos();
+  const eventosSerpAPI = await getEventosSerpAPI();
 
   const allData = {
     imperdibles,
-    museos
+    museos,
+    eventos_serpapi: eventosSerpAPI
   };
 
   const outputPath = path.join(dataDir, 'caliEventos.json');
   fs.writeFileSync(outputPath, JSON.stringify(allData, null, 2));
-  console.log(`✅ Todos los datos han sido recopilados y guardados en ${outputPath}`);
+  console.log(`✅ Datos guardados en ${outputPath}`);
+
+  // 🔁 Guardar también en la base de datos
+  await insertarEventos(eventosSerpAPI);
 }
 
 runDataCollector();

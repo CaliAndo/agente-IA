@@ -13,7 +13,7 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 const sessionData = {};
-const eventosCache = {}; // { numero: { lista: [], pagina: 0 } }
+const eventosCache = {}; //
 
 app.post('/webhook', async (req, res) => {
   const mensaje = req.body.Body?.toLowerCase() || '';
