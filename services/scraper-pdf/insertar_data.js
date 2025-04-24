@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
+const cron = require('node-cron');  // Añadido para programar la tarea
 
 // Configuración de PostgreSQL
 const pool = new Pool({
@@ -78,8 +79,10 @@ async function insertarLugares() {
   }
 }
 
-// Ejecutar la función
-insertarLugares();
+// Programar la ejecución cada 24 horas (esto ejecutará la función cada día a medianoche)
+cron.schedule('0 0 * * *', () => {
+  console.log('🕒 Ejecutando la tarea programada para actualizar los lugares...');
+  insertarLugares();  // Llamamos la función para hacer la inserción de los lugares
+});
 
-
-module.exports = insertarLugares;
+console.log('✅ Sistema de actualización programada activo, ejecutando cada 24 horas.');

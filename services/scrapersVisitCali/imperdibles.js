@@ -4,7 +4,7 @@ const { Pool } = require('pg');
 const cron = require('node-cron');
 require('dotenv').config();
 
-// PostgreSQL config
+// Configuración de PostgreSQL
 const pool = new Pool({
   host: process.env.PG_HOST,
   port: process.env.PG_PORT,
@@ -13,6 +13,7 @@ const pool = new Pool({
   password: process.env.PG_PASSWORD
 });
 
+// Función para hacer scraping de Civitatis
 async function scrapeImperdibles() {
   const apiKey = process.env.SCRAPERAPI_KEY;
   const url = 'https://www.visitcali.travel/imperdibles-de-cali/';
@@ -41,26 +42,64 @@ async function scrapeImperdibles() {
 
     let insertados = 0;
     for (const item of imperdibles) {
-      const query = `
-        INSERT INTO eventos (nombre, descripcion, fecha, ubicacion, categoria)
-        VALUES ($1, '', null, $2, $3)
-        ON CONFLICT DO NOTHING
-      `;
-      await pool.query(query, [item.title, item.link, 'imperdible',pageUrl]);
-      insertados++;
+      // Verificar si el evento ya existe en la tabla `eventos`
+      const evento_id = await getEventoIdByTitulo(item.title);
+
+      if (!evento_id) {
+        console.log(`⚠️ No se encontró evento_id para el imperdible: ${item.title}. Insertando nuevo evento...`);
+        // Si el evento no existe, insertamos el evento en `eventos`
+        const insertEventoQuery = `
+          INSERT INTO eventos (nombre)
+          VALUES ($1)
+          RETURNING id
+        `;
+        const insertEventoResult = await pool.query(insertEventoQuery, [item.title]);
+        const newEventoId = insertEventoResult.rows[0].id;
+        console.log(`Nuevo evento insertado con ID: ${newEventoId}`);
+
+        // Ahora insertamos el imperdible en la tabla `imperdibles`
+        await insertImperdible(newEventoId, item);
+        insertados++;
+      } else {
+        console.log(`➡️ Insertando imperdible con evento_id: ${evento_id}`);
+        await insertImperdible(evento_id, item);
+        insertados++;
+      }
     }
 
-    console.log(`✅ ${insertados} eventos imperdibles insertados en la base de datos.`);
+    console.log(`✅ ${insertados} imperdibles guardados en la base de datos.`);
   } catch (err) {
     console.error('❌ Error en scrapeImperdibles:', err.message);
   }
 }
 
-// ✅ Ejecutar una vez al inicio
-scrapeImperdibles();
+// Función para obtener el ID del evento usando el título
+async function getEventoIdByTitulo(nombre) {
+  const query = 'SELECT id FROM eventos WHERE nombre = $1'; 
+  const res = await pool.query(query, [nombre]);
+  return res.rows[0]?.id || null;
+}
 
-// 🔁 Ejecutar automáticamente cada 24 horas (a medianoche)
+// Función para insertar los datos en la tabla `imperdibles`
+async function insertImperdible(evento_id, imperdible) {
+  const query = `
+    INSERT INTO imperdibles (evento_id, titulo, link)
+    VALUES ($1, $2, $3)
+  `;
+  await pool.query(query, [evento_id, imperdible.title, imperdible.link]);
+}
+
+// Test: Ejecutar una vez al inicio
+scrapeImperdibles().then(() => {
+  console.log('Test completado.');
+}).catch(err => {
+  console.error('Error al ejecutar el test:', err.message);
+});
+
+// Programar ejecución automática cada 24 horas (a medianoche)
 cron.schedule('0 0 * * *', () => {
   console.log('🕛 Ejecutando tarea programada de scrapeImperdibles...');
   scrapeImperdibles();
 });
+
+module.exports = scrapeImperdibles; 

@@ -28,7 +28,7 @@ async function scrapeMuseos() {
     const html = await res.text();
     const $ = cheerio.load(html);
 
-    const museos = [];
+    let museos = [];  // Usamos let en lugar de const, ya que vamos a reasignar la variable
 
     $('h2.eael-entry-title a').each((i, el) => {
       const title = $(el).text().trim();
@@ -42,26 +42,64 @@ async function scrapeMuseos() {
 
     let insertados = 0;
     for (const item of museos) {
-      const query = `
-        INSERT INTO eventos (nombre, descripcion, fecha, ubicacion, categoria, fuente)
-        VALUES ($1, '', null, $2, $3, $4)
-        ON CONFLICT DO NOTHING
-      `;
-      await pool.query(query, [item.title, item.link, 'museo', pageUrl]);
-      insertados++;
+      // Verificar si el evento ya existe en la tabla `eventos`
+      let evento_id = await getEventoIdByTitulo(item.title); // Cambié const por let aquí
+
+      if (!evento_id) {
+        console.log(`⚠️ No se encontró evento_id para el museo: ${item.title}. Insertando nuevo evento...`);
+        // Si el evento no existe, insertamos el evento en `eventos`
+        const insertEventoQuery = `
+          INSERT INTO eventos (nombre)
+          VALUES ($1)
+          RETURNING id
+        `;
+        const insertEventoResult = await pool.query(insertEventoQuery, [item.title]);
+        evento_id = insertEventoResult.rows[0].id;  // Ahora asignamos evento_id
+        console.log(`Nuevo evento insertado con ID: ${evento_id}`);
+
+        // Ahora insertamos el museo en la tabla `museos`
+        await insertMuseo(evento_id, item);
+        insertados++;
+      } else {
+        console.log(`➡️ Insertando museo con evento_id: ${evento_id}`);
+        await insertMuseo(evento_id, item);
+        insertados++;
+      }
     }
 
-    console.log(`✅ ${insertados} museos insertados en la base de datos con fuente incluida.`);
+    console.log(`✅ ${insertados} museos guardados en la base de datos.`);
   } catch (err) {
     console.error('❌ Error en scrapeMuseos:', err.message);
   }
 }
 
-// Ejecutar inmediatamente
-scrapeMuseos();
+// Función para obtener el ID del evento usando el título
+async function getEventoIdByTitulo(nombre) {
+  const query = 'SELECT id FROM eventos WHERE nombre = $1'; 
+  const res = await pool.query(query, [nombre]);
+  return res.rows[0]?.id || null;
+}
 
-// Programar cada 24h (medianoche)
+// Función para insertar los datos en la tabla `museos`
+async function insertMuseo(evento_id, museo) {
+  const query = `
+    INSERT INTO museos (evento_id, title, link)
+    VALUES ($1, $2, $3)
+  `;
+  await pool.query(query, [evento_id, museo.title, museo.link]);
+}
+
+// Test: Ejecutar una vez al inicio
+scrapeMuseos().then(() => {
+  console.log('Test completado.');
+}).catch(err => {
+  console.error('Error al ejecutar el test:', err.message);
+});
+
+// Programar ejecución automática cada 24 horas (a medianoche)
 cron.schedule('0 0 * * *', () => {
-  console.log('🕛 Ejecutando scrapeMuseos programado...');
+  console.log('🕛 Ejecutando tarea programada de scrapeMuseos...');
   scrapeMuseos();
 });
+
+module.exports = scrapeMuseos;

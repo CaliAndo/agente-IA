@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer');
 const { Pool } = require('pg');
+const cron = require('node-cron');
 require('dotenv').config();
 
 // Configuración de PostgreSQL
@@ -108,8 +109,10 @@ async function insertCivitatis(evento_id, tour) {
   await pool.query(query, [evento_id, tour.titulo, tour.descripcion, tour.viajeros, tour.precio]);
 }
 
-scrapeCivitatis().catch(err => {
-  console.error('❌ Error al hacer scraping:', err);
+// Programar la ejecución cada 24 horas (esto ejecutará la función cada día a medianoche)
+cron.schedule('0 0 * * *', () => {
+  console.log('🕒 Ejecutando la tarea programada para actualizar los tours...');
+  scrapeCivitatis();  // Llamamos la función para hacer scraping y guardar los tours
 });
 
-module.exports = scrapeCivitatis;
+console.log('✅ Sistema de actualización programada activo, ejecutando cada 24 horas.');

@@ -1,7 +1,6 @@
-// Archivo: sheet-scraper.js
-
 const axios = require('axios');
 const { Pool } = require('pg');
+const cron = require('node-cron');
 
 // Configuración de PostgreSQL
 const pool = new Pool({
@@ -17,7 +16,6 @@ const sheetId = '1MMUh5RjXAtRH9EJiPHVhOGxGGEEqhbEI10F5LciBMMg';
 const hoja = 'Hoja1';
 const url = `https://opensheet.elk.sh/${sheetId}/${hoja}`;
 
-// Función principal para insertar eventos desde Google Sheets
 // Función principal para insertar eventos desde Google Sheets
 async function insertarEventosDesdeSheets() {
   try {
@@ -78,13 +76,18 @@ async function insertarEventosDesdeSheets() {
     console.error('❌ Error al insertar eventos:', error.message);
   }
 }
+
+// Función para obtener el evento_id a partir del nombre
 async function getEventoIdByTitulo(nombre) {
   const query = 'SELECT id FROM eventos WHERE nombre = $1'; 
   const res = await pool.query(query, [nombre]);
   return res.rows[0]?.id || null;
 }
 
+// Programar la ejecución cada 24 horas (esto ejecutará la función cada día a medianoche)
+cron.schedule('0 0 * * *', () => {
+  console.log('🕒 Ejecutando la tarea programada para actualizar los eventos...');
+  insertarEventosDesdeSheets();  // Llamamos la función para insertar los eventos
+});
 
-
-// Exporta la función para que pueda ser utilizada en otros archivos
-module.exports = insertarEventosDesdeSheets;
+console.log('✅ Sistema de actualización programada activo, ejecutando cada 24 horas.');
