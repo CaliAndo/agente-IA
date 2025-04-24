@@ -1,14 +1,13 @@
-const insertarEventosDesdeSheets = require('./services/GoogleSheets/GoogleSheets'); // Asegúrate de que la ruta sea correcta
+const insertarLugares = require('./services/scraper-pdf/insertar_data'); // Importa la función desde sheet-scraper.js
 
-// Llamada al scraper y ejecución
-async function testScrapeSheets() {
+async function testLugares() {
   try {
-    console.log("📥 Iniciando el scraping desde Google Sheets...");
-    await insertarEventosDesdeSheets(); // Llama a la función que descarga los datos desde Google Sheets e inserta en la base de datos
-    console.log("✅ Scraping completado y datos guardados en la base de datos.");
-  } catch (err) {
-    console.error("❌ Error al ejecutar el scraping desde Google Sheets:", err);
+    console.log("🚀 Iniciando prueba de inserción de lugares...");
+    await insertarLugares(); // Llama a la función para insertar los lugares en la base de datos
+    console.log("✅ Prueba completada, los lugares se insertaron correctamente.");
+  } catch (error) {
+    console.error("❌ Error en la prueba de inserción de lugares:", error);
   }
 }
 
-testScrapeSheets(); // Ejecuta el test
+testLugares(); // Ejecuta la prueba

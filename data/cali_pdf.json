@@ -3,11 +3,18 @@
     "pagina": 61,
     "titulo": "Capital Mundial de la Salsa",
     "contenido": [
-      "Con más de 120 escuelas de salsa, múltiples campeones mundiales y miles de bailarines expertos, aprender a bailar la salsa caleña es uno de los principales planes en Cali. Se pueden encontrar clases grupales desde COP $30.000 y personalizadas desde COP $60.000, según la escuela y tipo de experiencia.",
-      "La salsa en Cali es el resultado de una evolución cultural que llevó a la creación de un estilo de baile propio, hoy en día considerado Patrimonio Inmaterial de Colombia. Eventos como la Feria de Cali son reconocidos mundialmente.",
       {
+        "tipo": "texto",
+        "contenido": "Con más de 120 escuelas de salsa, múltiples campeones mundiales y miles de bailarines expertos, aprender a bailar la salsa caleña es uno de los principales planes en Cali. Se pueden encontrar clases grupales desde COP $30.000 y personalizadas desde COP $60.000, según la escuela y tipo de experiencia."
+      },
+      {
+        "tipo": "texto",
+        "contenido": "La salsa en Cali es el resultado de una evolución cultural que llevó a la creación de un estilo de baile propio, hoy en día considerado Patrimonio Inmaterial de Colombia. Eventos como la Feria de Cali son reconocidos mundialmente."
+      },
+      {
+        "tipo": "subtitulo",
         "subtitulo": "Shows de Salsa Caleña Clase Mundial",
-        "shows_destacados": [
+        "contenido": [
           {
             "nombre": "Delirio y Paseo de la Aurora",
             "descripcion": "Un show único basado en la cultura popular caleña que se ha convertido en un símbolo de ciudad. Ideal para compartir en familia y disfrutar de la magia de la salsa circo, cerca al Centro de Eventos Valle del Pacífico."
@@ -23,12 +30,14 @@
         ]
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Museo de la Salsa",
-        "descripcion": "Un museo fotográfico donde se cuenta la historia de la salsa en Cali y en el exterior. Incluye más de 40.000 fotografías que recorren Cuba, Puerto Rico, Venezuela, Nueva York y el Caribe."
+        "contenido": "Un museo fotográfico donde se cuenta la historia de la salsa en Cali y en el exterior. Incluye más de 40.000 fotografías que recorren Cuba, Puerto Rico, Venezuela, Nueva York y el Caribe."
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Discotecas para Salseros",
-        "lugares": [
+        "contenido": [
           "La Topa Tolondra",
           "Zaperoco Bar",
           "Tintindeo",
@@ -39,8 +48,9 @@
         ]
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Barrio Obrero",
-        "descripcion": "Fundado en 1919 por artesanos, obreros y trabajadores del ferrocarril, el Barrio Obrero es el corazón de Cali salsera. Allí se vive y se siente la historia musical que late a ritmo de 33 a 45 rpm."
+        "contenido": "Fundado en 1919 por artesanos, obreros y trabajadores del ferrocarril, el Barrio Obrero es el corazón de Cali salsera. Allí se vive y se siente la historia musical que late a ritmo de 33 a 45 rpm."
       }
     ]
   },
@@ -49,12 +59,14 @@
     "titulo": "Entretenimiento, Hospedaje y Compras",
     "contenido": [
       {
+        "tipo": "subtitulo",
         "subtitulo": "Vida Nocturna",
-        "descripcion": "La Pérgola Clandestina, ubicada en el centro de Cali, fue reconocida como uno de los 100 mejores clubes nocturnos del mundo por la International Nightlife Association, ocupando el puesto #50 global y el #1 en Colombia."
+        "contenido": "La Pérgola Clandestina, ubicada en el centro de Cali, fue reconocida como uno de los 100 mejores clubes nocturnos del mundo por la International Nightlife Association, ocupando el puesto #50 global y el #1 en Colombia."
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Hospedajes Recomendados",
-        "lugares": [
+        "contenido": [
           "Hotel Intercontinental",
           "Hotel Marriot",
           "Hotel Dann Carlton",
@@ -66,8 +78,9 @@
         ]
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Centros Comerciales",
-        "descripcion": "Cali cuenta con una amplia variedad de tiendas, boutiques y centros comerciales. Algunos de los más destacados son:",
+        "contenido": "Cali cuenta con una amplia variedad de tiendas, boutiques y centros comerciales. Algunos de los más destacados son:",
         "lugares": [
           "Centro Comercial Chipichape",
           "Jardín Plaza",
@@ -76,8 +89,9 @@
         ]
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Bares y Discotecas Reconocidas",
-        "lugares": [
+        "contenido": [
           "La Pérgola",
           "Delirio",
           "Paseo de la Aurora",
@@ -97,11 +111,18 @@
     "pagina": 63,
     "titulo": "Cultura y Museos",
     "contenido": [
-      "Cali ha sido premiada como 'Destino Cultural de Sudamérica' en los World Travel Awards debido a su amplia oferta cultural, artística, patrimonial y musical.",
-      "Una ciudad que cuenta con un Patrimonio Histórico e Inmaterial incalculable en sus diferentes atractivos urbanos.",
       {
+        "tipo": "texto",
+        "contenido": "Cali ha sido premiada como 'Destino Cultural de Sudamérica' en los World Travel Awards debido a su amplia oferta cultural, artística, patrimonial y musical."
+      },
+      {
+        "tipo": "texto",
+        "contenido": "Una ciudad que cuenta con un Patrimonio Histórico e Inmaterial incalculable en sus diferentes atractivos urbanos."
+      },
+      {
+        "tipo": "subtitulo",
         "subtitulo": "Museos y Teatros Destacados",
-        "lugares": [
+        "contenido": [
           "Teatro Municipal",
           "Teatro Jorge Isaacs",
           "Museo de Arte la Merced",
@@ -118,12 +139,14 @@
         ]
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Caliwood",
-        "descripcion": "Fundado en los años 70, fue un cineclub que evolucionó en museo cinematográfico y se convirtió en el epicentro del cine nacional."
+        "contenido": "Fundado en los años 70, fue un cineclub que evolucionó en museo cinematográfico y se convirtió en el epicentro del cine nacional."
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Museo La Tertulia",
-        "descripcion": "El museo más conocido por su arquitectura frente al río y su colección de arte moderno, con permanente actividad cultural."
+        "contenido": "El museo más conocido por su arquitectura frente al río y su colección de arte moderno, con permanente actividad cultural."
       }
     ]
   },
@@ -132,6 +155,7 @@
     "titulo": "Eventos y Festivales",
     "contenido": [
       {
+        "tipo": "eventos",
         "eventos": [
           "Mundial de la Salsa",
           "Festival Internacional de Ballet",
@@ -153,8 +177,9 @@
     "titulo": "Rutas Naturales: Vuelta de Occidente",
     "contenido": [
       {
+        "tipo": "subtitulo",
         "subtitulo": "Puntos de la Ruta",
-        "rutas": [
+        "contenido": [
           "1. Andes",
           "2. Pichindé",
           "3. La Leonera",
@@ -165,8 +190,9 @@
         ]
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Descripción General",
-        "descripcion": "Una de las principales rutas ecoturísticas del país, ideal para avistamiento de aves, tours cafeteros, naturaleza y miradores."
+        "contenido": "Una de las principales rutas ecoturísticas del país, ideal para avistamiento de aves, tours cafeteros, naturaleza y miradores."
       }
     ]
   },
@@ -175,22 +201,30 @@
     "titulo": "Ruta de la Montaña",
     "contenido": [
       {
+        "tipo": "subtitulo",
         "subtitulo": "Corregimientos",
-        "lugares": [
+        "contenido": [
           "Pance: balnearios, gastronomía, ciclismo, Ecoparque, veredas",
           "Villacarmelo: spas naturales, cascadas, reservas como Bachué y Bosque Colibrí",
           "La Buitrera: destacada por Charco Azul, piscina natural tras caminata"
         ]
       },
-      "La ruta ofrece balnearios, senderos, centros de bienestar, gastronomía y mercados campesinos."
+      {
+        "tipo": "texto",
+        "contenido": "La ruta ofrece balnearios, senderos, centros de bienestar, gastronomía y mercados campesinos."
+      }
     ]
   },
   {
     "pagina": 67,
     "titulo": "Turismo Natural y Rural",
     "contenido": [
-      "Cali posee un 75% de territorio rural.",
       {
+        "tipo": "texto",
+        "contenido": "Cali posee un 75% de territorio rural."
+      },
+      {
+        "tipo": "datos",
         "datos": {
           "especies_aves": 562,
           "especies_mariposas": 193,
@@ -199,7 +233,10 @@
           "parque_nacional": "Farallones de Cali"
         }
       },
-      "Destino líder en turismo de avistamiento de aves a nivel nacional e internacional."
+      {
+        "tipo": "texto",
+        "contenido": "Destino líder en turismo de avistamiento de aves a nivel nacional e internacional."
+      }
     ]
   },
   {
@@ -207,24 +244,29 @@
     "titulo": "Otros Destinos Naturales",
     "contenido": [
       {
+        "tipo": "subtitulo",
         "subtitulo": "Hacienda La Gloria",
-        "descripcion": "Sitio recreacional a 10 minutos de Cali para disfrutar la naturaleza, juegos y comida local."
+        "contenido": "Sitio recreacional a 10 minutos de Cali para disfrutar la naturaleza, juegos y comida local."
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Zoológico de Cali",
-        "descripcion": "Refugio para más de 2.500 animales, con enfoque educativo y recreativo."
+        "contenido": "Refugio para más de 2.500 animales, con enfoque educativo y recreativo."
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Jardín Botánico de Cali",
-        "descripcion": "12 hectáreas de bosque tropical para avistamiento de fauna y flora."
+        "contenido": "12 hectáreas de bosque tropical para avistamiento de fauna y flora."
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Museo Orquideorama",
-        "descripcion": "Museo vivo de orquídeas con entrada libre."
+        "contenido": "Museo vivo de orquídeas con entrada libre."
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Mariposario Andoke",
-        "descripcion": "15 especies de mariposas, incluye experiencia con capullos. Precio entre COP $25.000 y $65.000."
+        "contenido": "15 especies de mariposas, incluye experiencia con capullos. Precio entre COP $25.000 y $65.000."
       }
     ]
   },
@@ -233,6 +275,7 @@
     "titulo": "Zonas Gastronómicas de Cali",
     "contenido": [
       {
+        "tipo": "zonas",
         "zonas": [
           "Granada: Platillos Voladores, El Ringlete, Cantina La 15",
           "San Antonio: Waunana, Antigua, Criollan Lovers",
@@ -240,6 +283,7 @@
         ]
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Platos Típicos",
         "platos": [
           "Champús",
@@ -259,6 +303,7 @@
     "titulo": "Más Experiencias Gastronómicas",
     "contenido": [
       {
+        "tipo": "zonas",
         "zonas": [
           "El Peñón: Krost Bakery, Hacienda del Bosque",
           "Galería Alameda: mejor opción para probar comida pacífica",
@@ -268,6 +313,7 @@
         ]
       },
       {
+        "tipo": "subtitulo",
         "subtitulo": "Cerca de Cali",
         "lugares": [
           "Dapa: La Barra de la Cabaña, Café de las Hadas",
