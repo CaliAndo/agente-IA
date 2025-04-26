@@ -15,14 +15,16 @@
     "cheerio": "^1.0.0",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
+    "fuse.js": "^7.1.0",
     "natural": "^8.0.1",
     "node-cron": "^3.0.3",
     "node-fetch": "^2.7.0",
-    "pg": "^8.15.5",
+    "pg": "^8.15.6",
     "playwright": "^1.51.1",
     "puppeteer": "^24.6.1",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "string-similarity": "^4.0.4",
     "twilio": "^5.5.2"
   }
 }

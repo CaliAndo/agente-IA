@@ -1,57 +1,45 @@
-// 📁 services/intencionHandler.js
+const stringSimilarity = require('string-similarity');
 
-const fs = require('fs');
-
-// Cargar datos desde JSON local
-const eventosLocales = JSON.parse(fs.readFileSync('./data/caliEventos.json', 'utf8'));
-const tours = JSON.parse(fs.readFileSync('./data/civitatis_tours.json', 'utf8'));
-const actividades = JSON.parse(fs.readFileSync('./data/tripadvisor_actividades.json', 'utf8'));
-const secondaryactivities = JSON.parse(fs.readFileSync('./data/tripadvisor_cali.json', 'utf8'));
-const thirdactivities = JSON.parse(fs.readFileSync('./data/tripadvisor_carousel.json', 'utf8'));
-
-// Palabras clave por categoría
+// Definimos las intenciones con palabras clave
 const categorias = {
-  eventos: ['evento', 'salir', 'plan', 'rumba', 'fiesta', 'feria', 'musical', 'bailar', 'concierto', 'show'],
-  cultura: ['cultura', 'arte', 'museo', 'historia', 'exposición', 'teatro'],
-  comida: ['comida', 'hambre', 'cenar', 'almorzar', 'restaurante', 'antojado', 'sabroso', 'gastronomía'],
-  tours: ['tour', 'visita', 'excursión', 'aventura', 'caminar', 'recorrido', 'explorar'],
+  rumba: ["bailar", "rumba", "fiesta", "concierto", "discoteca", "salir"],
+  eventos: ["evento", "eventos", "show", "feria", "festival"],
+  tours: ["tour", "paseo", "aventura", "excursión", "explorar"],
+  cultura: ["museo", "cultura", "historia", "arte", "teatro", "exposición"],
+  recomendaciones: ["recomiéndame", "sugerencias", "qué hacer", "actividades"],
 };
 
-function detectarIntencion(mensaje) {
-  const lowerMsg = mensaje.toLowerCase();
-  for (const [categoria, palabras] of Object.entries(categorias)) {
-    if (palabras.some(p => lowerMsg.includes(p))) {
-      return categoria;
+function detectarIntencionAvanzada(mensaje) {
+  const palabrasMensaje = mensaje.toLowerCase().split(/\s+/);
+
+  const puntajes = {
+    rumba: 0,
+    eventos: 0,
+    tours: 0,
+    cultura: 0,
+    recomendaciones: 0,
+  };
+
+  palabrasMensaje.forEach(palabra => {
+    for (const [categoria, palabrasClave] of Object.entries(categorias)) {
+      const coincidencia = stringSimilarity.findBestMatch(palabra, palabrasClave);
+      if (coincidencia.bestMatch.rating > 0.6) {
+        puntajes[categoria] += coincidencia.bestMatch.rating;
+      }
     }
+  });
+
+  const mejorCategoria = Object.entries(puntajes).sort((a, b) => b[1] - a[1])[0];
+
+  if (mejorCategoria && mejorCategoria[1] > 0) {
+    console.log(`🎯 Intención detectada: ${mejorCategoria[0]}`);
+    return mejorCategoria[0];
   }
+
+  console.log('🤔 No se detectó una intención clara.');
   return null;
 }
 
-function buscarRecomendaciones(categoria) {
-  if (categoria === 'eventos') {
-    return eventosLocales.imperdibles.map(e => `📌 ${e.title}\n🔗 ${e.link}`);
-  }
-  if (categoria === 'cultura') {
-    return eventosLocales.museos.map(e => `🏛️ ${e.title}\n🔗 ${e.link}`);
-  }
-  if (categoria === 'tours') {
-    return [
-      ...tours.map(t => `🚐 ${t.titulo}\n🔗 ${t.link}`),
-      ...actividades.map(a => `🌄 ${a.title}\n🔗 ${a.link}`),
-      ...secondaryactivities.map(a => `🎯 ${a.title}\n🔗 ${a.link}`),
-      ...thirdactivities.map(a => `✨ ${a.title}\n🔗 ${a.link}`),
-    ];
-  }
-  if (categoria === 'comida') {
-    return [
-      '🍽️ Puedes explorar la zona gastronómica de Granada, San Antonio o Ciudad Jardín. ¡Cali sabe a gloria!',
-      '😋 ¿Te antoja algo típico? Prueba el champús, las marranitas o un buen sancocho en Pance.'
-    ];
-  }
-  return [];
-}
-
 module.exports = {
-  detectarIntencion,
-  buscarRecomendaciones,
+  detectarIntencionAvanzada,
 };

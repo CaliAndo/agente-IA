@@ -1,19 +1,24 @@
 require('dotenv').config();
 const express = require('express');
 const twilio = require('twilio');
-const fs = require('fs');
-
-const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
-const { getEventosSerpAPI } = require('./services/serpAPI/events');
-const { detectarIntencion, buscarRecomendaciones } = require('./services/intencionHandler');
+const { detectarIntencionAvanzada } = require('./services/intencionHandler');
+const { getAllEventos } = require('./services/db/getEventos');
+const { getAllTours } = require('./services/db/getTours');
+const { getAllCultura } = require('./services/db/getCultura');
+const { getAllRecomendaciones } = require('./services/db/getRecomendaciones');
 
 const app = express();
+
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 const sessionData = {};
-const eventosCache = {}; //
+const eventosCache = {};
+
+function enviarMensajeBienvenida(twiml) {
+  twiml.message(`👋 ¡Hola! Soy *CaliAndo* 🤖.\n\nPuedes decirme qué quieres hacer:\n- Buscar *eventos* 🎫\n- Explorar *cultura* 🎭\n- Descubrir *tours* 🚐\n- O escribir *diccionario* 📖 para palabras típicas.\n\n¡Te escucho! 🔥`);
+}
 
 app.post('/webhook', async (req, res) => {
   const mensaje = req.body.Body?.toLowerCase() || '';
@@ -23,59 +28,105 @@ app.post('/webhook', async (req, res) => {
   console.log('📨 Mensaje recibido:', mensaje);
 
   try {
-    if (mensaje.includes('diccionario')) {
-      sessionData[numero] = { context: 'diccionario' };
-      twiml.message(`📚 Bienvenido al *diccionario caleño*. Escríbeme una palabra que quieras conocer.\nPor ejemplo: *borondo*, *ñapa*, *enguayabado*...`);
+    if (!isNaN(mensaje) && eventosCache[numero]) {
+      const indice = parseInt(mensaje) - 1;
+      const lista = eventosCache[numero].lista;
 
-    } else if (sessionData[numero]?.context === 'diccionario') {
-      const significado = await getMeaningFromSerpAPI(mensaje);
-      if (significado) {
-        twiml.message(`📖 ${significado}\n\n¿Quieres buscar otra palabra o volver al menú?`);
+      if (lista[indice]) {
+        const item = lista[indice];
+        let respuesta = `📚 *${item.nombre}*\n\n`;
+
+          if (item.descripcion) {
+            // Detectamos si la descripcion parece ser un link (empieza con http o https)
+            if (item.descripcion.startsWith('http')) {
+              respuesta += `🌐 [Más información aquí](${item.descripcion})\n\n`;
+            } else {
+              respuesta += `📝 ${item.descripcion}\n\n`;
+            }
+          }
+
+          if (item.extra) {
+            respuesta += `📌 Info adicional: ${item.extra}\n\n`;
+          }
+          if (item.precio) {
+            respuesta += `💲 Precio estimado: ${item.precio}\n\n`;
+          }
+          if (item.fuente) {
+            respuesta += `🌐 Fuente: ${item.fuente}\n\n`;
+          }
+          if (item.fecha) {
+            respuesta += `📅 Fecha: ${item.fecha}\n\n`;
+          }
+
+          respuesta += `👉 Escribe *ver más* para seguir viendo o *volver* para regresar.`;
+
+
+        twiml.message(respuesta);
+        res.writeHead(200, { 'Content-Type': 'text/xml' });
+        res.end(twiml.toString());
+        return;
       } else {
-        twiml.message('🤔 No encontré esa palabra. Prueba con otra como *borondo* o *enguayabado*.');
+        twiml.message('❌ No encontré esa opción. Intenta con un número válido de la lista.');
+        res.writeHead(200, { 'Content-Type': 'text/xml' });
+        res.end(twiml.toString());
+        return;
       }
+    }
 
-    } else if (mensaje.includes('qué es') || mensaje.includes('qué significa') || mensaje.includes('significa')) {
-      const significado = await getMeaningFromSerpAPI(mensaje);
-      if (significado) {
-        twiml.message(`📖 ${significado}`);
-      } else {
-        twiml.message('🤔 No encontré una definición clara. Prueba con otra palabra.');
-      }
-
-    } else if (mensaje.includes('ver mas') || mensaje.includes('ver más')) {
+    if (mensaje.includes('ver mas') || mensaje.includes('ver más')) {
       const cache = eventosCache[numero];
       if (!cache) {
-        twiml.message('ℹ️ Primero dime qué te gustaría hacer (por ejemplo: “quiero un tour”, “deseo comer algo típico”).');
+        twiml.message('ℹ️ Primero dime qué te gustaría hacer (por ejemplo: “quiero ir de rumba”, “quiero hacer un tour” o “diccionario”).');
       } else {
         const inicio = (cache.pagina + 1) * 5;
         const nuevos = cache.lista.slice(inicio, inicio + 5);
         if (nuevos.length > 0) {
           cache.pagina++;
-          twiml.message(`📍 Más recomendaciones para ti:\n\n${nuevos.join('\n\n')}\n\n👉 Escribe *ver más* para continuar o *volver* para regresar.`);
+          const respuesta = nuevos.map((r, idx) => `${inicio + idx + 1}. ${r.nombre}`).join('\n\n');
+          twiml.message(`📍 Más recomendaciones para ti:\n\n${respuesta}\n\n👉 Escribe *ver más* para seguir viendo o *volver* para regresar.`);
         } else {
           twiml.message('📭 Ya viste todas las recomendaciones disponibles. ¡Pronto habrá más!');
         }
       }
-
     } else if (mensaje.includes('volver')) {
       sessionData[numero] = undefined;
-      twiml.message(`👋 Bienvenido de vuelta a *CaliAndo*. ¿Qué quieres hacer hoy?\n\n- *comer* 🍽️\n- *cultura* 🎭\n- *eventos* 🎫\n- *diccionario* 📖`);
-
+      enviarMensajeBienvenida(twiml);
+    } else if (mensaje.includes('diccionario')) {
+      sessionData[numero] = { context: 'diccionario' };
+      twiml.message(`📚 Bienvenido al *diccionario caleño*. Escríbeme una palabra que quieras conocer.\nPor ejemplo: *borondo*, *ñapa*, *enguayabado*...`);
     } else {
-      sessionData[numero] = undefined;
-
-      const intencion = detectarIntencion(mensaje);
-      if (intencion) {
-        const recomendaciones = buscarRecomendaciones(intencion).slice(0, 5);
-        if (recomendaciones.length > 0) {
-          eventosCache[numero] = { lista: buscarRecomendaciones(intencion), pagina: 0 };
-          twiml.message(`🔎 Aquí tienes algunas recomendaciones según lo que mencionaste:\n\n${recomendaciones.join('\n\n')}\n\n👉 Escribe *ver más* para seguir viendo o *volver* para regresar.`);
-        } else {
-          twiml.message('🤔 ¡Te entendí, pero aún no tengo contenido para eso! Puedes intentar con otra palabra como *tour*, *evento* o *comida*.');
-        }
+      if (!sessionData[numero]) {
+        sessionData[numero] = { context: 'inicio' };
+        enviarMensajeBienvenida(twiml);
       } else {
-        twiml.message(`👋 ¡Hola! Soy CaliAndo y estoy aquí para ayudarte a descubrir lo mejor de Cali. Cuéntame qué te gustaría hacer hoy: ¿te antoja algo cultural, quieres parchar con amigos o recorrer lugares nuevos? Estoy listo para mostrarte lo que esta ciudad sabrosa tiene para ti 💃`);
+        const intencion = detectarIntencionAvanzada(mensaje);
+
+        if (!intencion) {
+          twiml.message('🤔 No entendí bien lo que quieres. ¿Me puedes decir si quieres ver eventos, cultura, tours o usar el diccionario?');
+          res.writeHead(200, { 'Content-Type': 'text/xml' });
+          res.end(twiml.toString());
+          return;
+        }
+
+        let resultados = [];
+
+        if (intencion === 'rumba' ) {
+          resultados = await getAllEventos();
+        } else if (intencion === 'tours') {
+          resultados = await getAllTours();
+        } else if (intencion === 'cultura') {
+          resultados = await getAllCultura();
+        } else if (intencion === 'recomendaciones'|| intencion === 'eventos') {
+          resultados = await getAllRecomendaciones();
+        }
+
+        if (resultados.length > 0) {
+          eventosCache[numero] = { lista: resultados, pagina: 0 };
+          const respuesta = resultados.slice(0, 5).map((r, idx) => `${idx + 1}. ${r.nombre}`).join('\n\n');
+          twiml.message(`🔎 Encontré algunas opciones para ti:\n\n${respuesta}\n\n👉 Escribe *ver más* para seguir viendo o *volver* para regresar.`);
+        } else {
+          twiml.message('🤔 ¡No encontré resultados en este momento! Puedes intentar otra búsqueda o escribir *diccionario* 📖.');
+        }
       }
     }
   } catch (error) {
