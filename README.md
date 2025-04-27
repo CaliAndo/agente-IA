@@ -1,51 +1,119 @@
-# Bot de WhatsApp para Recomendaciones Culturales
+# 😉 CaliAndo Bot
 
-Este es un **bot de WhatsApp** desarrollado usando **Twilio** y **Node.js** para recomendar planes y eventos culturales en la ciudad de Cali. El bot interactúa con los usuarios y responde con recomendaciones personalizadas basadas en sus intereses y preferencias.
-
-## 📦 Requisitos
-
-Antes de ejecutar el bot, asegúrate de tener lo siguiente:
-
-- **Node.js** instalado (preferiblemente la versión LTS).
-- **Twilio Account SID** y **Auth Token**.
-- **ngrok** (para generar una URL pública para el webhook).
-- **PostgreSQL** o **Supabase** (si deseas guardar las preferencias del usuario en una base de datos).
+Este es un **bot de WhatsApp** desarrollado usando **Twilio** y **Node.js** para recomendar planes y eventos culturales en la ciudad de Cali. 
+El bot interactúa de manera conversacional con los usuarios y responde con recomendaciones personalizadas basadas en sus intereses.
 
 ---
 
-## 🛠️ Instalación
+## 📦 Requisitos
 
-1. **Clona este repositorio**:
+Antes de ejecutar este bot, asegúrate de tener:
 
-   ```bash
-   git clone https://github.com/Jramirezzz/agente-IA.git
-   cd nombre-del-repositorio
-   ```
+- Node.js (versión LTS recomendada).
+- Cuenta de Twilio (Account SID y Auth Token activos).
+- ngrok (para exponer el servidor local a internet).
+- Base de datos PostgreSQL local o Supabase.
+- Clave de SerpAPI (para el Diccionario Caleño).
 
-   1. **Instala las dependencias**:
+---
 
-   ```bash
-   npm install
-   ```
-   
-   
-3. **Configura las variables de entorno**:
-    ```bash
-   PORT=3000
-    TWILIO_ACCOUNT_SID=tu_account_sid
-    TWILIO_AUTH_TOKEN=tu_auth_token
-    VERIFY_TOKEN=tu_token_de_verificacion
-   ```
-4. **Configura ngrok**:
-    ```bash
-   npx ngrok http 3000
-   ```
+## ✨ Instalación
 
-    
-   
+### 1. 🔄 Clona este repositorio
 
-   
+```bash
+git clone https://github.com/Jramirezzz/agente-IA.git
+cd agente-IA
+```
 
-   
+### 2. ⚡ Instala las dependencias
 
-   
+```bash
+npm install
+```
+
+### 3. ⚖️ Configura las variables de entorno (`.env`)
+
+Crea un archivo llamado `.env` en la raíz del proyecto con el siguiente contenido:
+
+```dotenv
+PORT=3000
+
+TWILIO_ACCOUNT_SID=tu_account_sid
+TWILIO_AUTH_TOKEN=tu_auth_token
+TWILIO_PHONE_NUMBER=whatsapp:+14155238886
+
+SERPAPI_KEY=tu_serpapi_key
+SCRAPERAPI_KEY=tu_scraperapi_key
+
+OPENAI_API_KEY=tu_openai_key (opcional si deseas IA)
+HUGGINGFACE_API_TOKEN=tu_huggingface_key (opcional si deseas IA)
+
+DB_HOST=localhost
+DB_PORT= tu_puerto
+DB_DATABASE= tu_database
+DB_USER=tu_usuario_pg
+DB_PASSWORD=tu_contraseña_pg
+```
+
+### 4. 🔗 Ejecuta ngrok
+
+```bash
+npx ngrok http 3000
+```
+
+Copia la URL generada (ejemplo: `https://xxxxx.ngrok.io`) y configúrala en el **Webhook de Twilio**.
+
+---
+
+## 🌐 Webhook de Twilio
+
+En el dashboard de Twilio:
+
+- Sandbox WhatsApp > Configura "When a message comes in" con la URL:
+
+```
+https://xxxxx.ngrok.io/webhook
+```
+
+(Recuerda reemplazar `xxxxx` por tu URL ngrok).
+
+---
+
+## 🔄 Flujo de Conversación
+
+- Cuando el usuario escribe:
+  - **"cultura"**, **"eventos"**, **"tours"**: el bot recomienda planes culturales según la base de datos.
+  - **"diccionario"**: busca el significado de palabras caleñas usando SerpAPI.
+  - **"ver más"**: muestra más opciones si hay.
+  - **"volver"**: regresa al menú principal.
+
+---
+
+## 📝 Tecnologías utilizadas
+
+- **Node.js**
+- **Express**
+- **Twilio API (WhatsApp)**
+- **ngrok**
+- **PostgreSQL**
+- **SerpAPI**
+- **Opcional: OpenAI o HuggingFace** para mejor interpretación de mensajes
+
+---
+
+## 🚀 Próximos pasos
+
+- Implementar inteligencia artificial para entender mensajes de forma aún más precisa.
+- Mejorar el flujo de conversación agregando botones (Quick Replies).
+- Implementar cacheo de resultados para mejorar la velocidad.
+
+---
+
+## 🎉 Hecho con pasión por Jramirezzz
+
+❤️ #CaliEsSabor #CaliAndoBot
+
+---
+
+¡Listo para disfrutar de los mejores planes de Cali! 🚶‍♂️🍻🎨
