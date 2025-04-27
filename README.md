@@ -41,7 +41,7 @@ PORT=3000
 
 TWILIO_ACCOUNT_SID=tu_account_sid
 TWILIO_AUTH_TOKEN=tu_auth_token
-TWILIO_PHONE_NUMBER=whatsapp:+14155238886
+TWILIO_PHONE_NUMBER=whatsapp: tu_numero
 
 SERPAPI_KEY=tu_serpapi_key
 SCRAPERAPI_KEY=tu_scraperapi_key
