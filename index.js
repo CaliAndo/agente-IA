@@ -1,14 +1,10 @@
 require('dotenv').config();
 const express = require('express');
 const twilio = require('twilio');
-const { detectarIntencionAvanzada } = require('./services/intencionHandler');
-const { getAllEventos } = require('./services/db/getEventos');
-const { getAllTours } = require('./services/db/getTours');
-const { getAllCultura } = require('./services/db/getCultura');
-const { getAllRecomendaciones } = require('./services/db/getRecomendaciones');
+const { buscarCoincidencias } = require('./services/db/searchEngine');
+const { getMeaningFromSerpAPI } = require('./services/dictionary/getMeaningFromSerpAPI');
 
 const app = express();
-
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
@@ -16,12 +12,8 @@ const PORT = process.env.PORT || 3000;
 const sessionData = {};
 const eventosCache = {};
 
-function enviarMensajeBienvenida(twiml) {
-  twiml.message(`👋 ¡Hola! Soy *CaliAndo* 🤖.\n\nPuedes decirme qué quieres hacer:\n- Buscar *eventos* 🎫\n- Explorar *cultura* 🎭\n- Descubrir *tours* 🚐\n- O escribir *diccionario* 📖 para palabras típicas.\n\n¡Te escucho! 🔥`);
-}
-
 app.post('/webhook', async (req, res) => {
-  const mensaje = req.body.Body?.toLowerCase() || '';
+  const mensaje = req.body.Body?.toLowerCase().trim() || '';
   const numero = req.body.From || '';
   const twiml = new twilio.twiml.MessagingResponse();
 
@@ -35,31 +27,10 @@ app.post('/webhook', async (req, res) => {
       if (lista[indice]) {
         const item = lista[indice];
         let respuesta = `📚 *${item.nombre}*\n\n`;
-
-          if (item.descripcion) {
-            // Detectamos si la descripcion parece ser un link (empieza con http o https)
-            if (item.descripcion.startsWith('http')) {
-              respuesta += `🌐 [Más información aquí](${item.descripcion})\n\n`;
-            } else {
-              respuesta += `📝 ${item.descripcion}\n\n`;
-            }
-          }
-
-          if (item.extra) {
-            respuesta += `📌 Info adicional: ${item.extra}\n\n`;
-          }
-          if (item.precio) {
-            respuesta += `💲 Precio estimado: ${item.precio}\n\n`;
-          }
-          if (item.fuente) {
-            respuesta += `🌐 Fuente: ${item.fuente}\n\n`;
-          }
-          if (item.fecha) {
-            respuesta += `📅 Fecha: ${item.fecha}\n\n`;
-          }
-
-          respuesta += `👉 Escribe *ver más* para seguir viendo o *volver* para regresar.`;
-
+        if (item.descripcion) {
+          respuesta += `📝 ${item.descripcion}\n\n`;
+        }
+        respuesta += `👉 ¿Deseas buscar otra cosa o abrir el menú?\nEscribe *otra búsqueda* o *menú*.`;
 
         twiml.message(respuesta);
         res.writeHead(200, { 'Content-Type': 'text/xml' });
@@ -76,59 +47,71 @@ app.post('/webhook', async (req, res) => {
     if (mensaje.includes('ver mas') || mensaje.includes('ver más')) {
       const cache = eventosCache[numero];
       if (!cache) {
-        twiml.message('ℹ️ Primero dime qué te gustaría hacer (por ejemplo: “quiero ir de rumba”, “quiero hacer un tour” o “diccionario”).');
+        twiml.message('ℹ️ Primero dime qué te gustaría hacer (por ejemplo: “quiero salir”, “quiero hacer un tour” o “cultura”).');
       } else {
         const inicio = (cache.pagina + 1) * 5;
         const nuevos = cache.lista.slice(inicio, inicio + 5);
         if (nuevos.length > 0) {
           cache.pagina++;
           const respuesta = nuevos.map((r, idx) => `${inicio + idx + 1}. ${r.nombre}`).join('\n\n');
-          twiml.message(`📍 Más recomendaciones para ti:\n\n${respuesta}\n\n👉 Escribe *ver más* para seguir viendo o *volver* para regresar.`);
+          twiml.message(`📍 Más recomendaciones para ti:\n\n${respuesta}\n\n👉 ¿Deseas buscar otra cosa o abrir el menú?\nEscribe *otra búsqueda* o *menú*.`);
         } else {
           twiml.message('📭 Ya viste todas las recomendaciones disponibles. ¡Pronto habrá más!');
         }
       }
+
     } else if (mensaje.includes('volver')) {
       sessionData[numero] = undefined;
-      enviarMensajeBienvenida(twiml);
+      twiml.message(`👋 ¡Hola! Soy *CaliAndo* 🤖 y estoy aquí para ayudarte a descubrir lo mejor de Cali 🇨🇴💃
+
+Cuéntame qué te gustaría hacer hoy: ¿te antoja algo cultural, quieres parchar con amigos o recorrer lugares nuevos?
+
+👉 *Escribe "menú" para ver las opciones disponibles.*`);
+
     } else if (mensaje.includes('diccionario')) {
       sessionData[numero] = { context: 'diccionario' };
-      twiml.message(`📚 Bienvenido al *diccionario caleño*. Escríbeme una palabra que quieras conocer.\nPor ejemplo: *borondo*, *ñapa*, *enguayabado*...`);
+      twiml.message(`📚 Bienvenido al *diccionario caleño*. Escríbeme una palabra que quieras conocer.
+
+Por ejemplo: *borondo*, *ñapa*, *enguayabado*...`);
+
+    } else if (mensaje.includes('menu') || mensaje.includes('menú')) {
+      twiml.message(`📋 *Opciones disponibles*:
+- Cultura 🎭
+- Eventos 🎫
+- Tours 🚐
+- Diccionario 📚
+
+👉 Escríbeme lo que quieras explorar.`);
+
     } else {
       if (!sessionData[numero]) {
         sessionData[numero] = { context: 'inicio' };
-        enviarMensajeBienvenida(twiml);
-      } else {
-        const intencion = detectarIntencionAvanzada(mensaje);
+        twiml.message(`👋 ¡Hola! Soy *CaliAndo* 🤖 y estoy aquí para ayudarte a descubrir lo mejor de Cali 🇨🇴💃
 
-        if (!intencion) {
-          twiml.message('🤔 No entendí bien lo que quieres. ¿Me puedes decir si quieres ver eventos, cultura, tours o usar el diccionario?');
-          res.writeHead(200, { 'Content-Type': 'text/xml' });
-          res.end(twiml.toString());
-          return;
-        }
+Cuéntame qué te gustaría hacer hoy: ¿te antoja algo cultural, quieres parchar con amigos o recorrer lugares nuevos?
 
-        let resultados = [];
+👉 *Escribe "menú" para ver las opciones disponibles.*`);
+      } else if (sessionData[numero]?.context === 'diccionario') {
+        const significado = await getMeaningFromSerpAPI(mensaje);
 
-        if (intencion === 'rumba' ) {
-          resultados = await getAllEventos();
-        } else if (intencion === 'tours') {
-          resultados = await getAllTours();
-        } else if (intencion === 'cultura') {
-          resultados = await getAllCultura();
-        } else if (intencion === 'recomendaciones'|| intencion === 'eventos') {
-          resultados = await getAllRecomendaciones();
-        }
-
-        if (resultados.length > 0) {
-          eventosCache[numero] = { lista: resultados, pagina: 0 };
-          const respuesta = resultados.slice(0, 5).map((r, idx) => `${idx + 1}. ${r.nombre}`).join('\n\n');
-          twiml.message(`🔎 Encontré algunas opciones para ti:\n\n${respuesta}\n\n👉 Escribe *ver más* para seguir viendo o *volver* para regresar.`);
+        if (significado) {
+          twiml.message(`📚 Significado de *${mensaje}*:\n\n${significado}\n\n👉 ¿Deseas buscar otra palabra o abrir el menú?\nEscribe *otra búsqueda* o *menú*.`);
         } else {
-          twiml.message('🤔 ¡No encontré resultados en este momento! Puedes intentar otra búsqueda o escribir *diccionario* 📖.');
+          twiml.message(`😔 No encontré un significado claro para *${mensaje}*. Intenta otra palabra o escribe *menú* para ver opciones.`);
+        }
+      } else {
+        const coincidencias = await buscarCoincidencias(mensaje);
+
+        if (coincidencias.length > 0) {
+          eventosCache[numero] = { lista: coincidencias, pagina: 0 };
+          const respuesta = coincidencias.slice(0, 5).map((r, idx) => `${idx + 1}. ${r.nombre}`).join('\n\n');
+          twiml.message(`🔎 Encontré algunas opciones para ti:\n\n${respuesta}\n\n👉 ¿Deseas buscar otra cosa o abrir el menú?\nEscribe *otra búsqueda* o *menú*.`);
+        } else {
+          twiml.message('😔 ¡No encontré resultados relacionados! Puedes intentar buscar *cultura*, *eventos*, *tours* o escribir *menú*.');
         }
       }
     }
+
   } catch (error) {
     console.error('💥 Error inesperado en el webhook:', error);
     twiml.message('❌ Algo salió mal. Intenta de nuevo más tarde.');
@@ -139,5 +122,5 @@ app.post('/webhook', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Bot escuchando en http://localhost:${PORT}`);
+  console.log(`🚀 CaliAndo Bot escuchando en http://localhost:${PORT}`);
 });

@@ -1,4 +1,5 @@
 const axios = require('axios');
+require('dotenv').config(); // Por si acaso (por buenas prácticas)
 
 const getMeaningFromSerpAPI = async (question) => {
   try {
@@ -6,34 +7,32 @@ const getMeaningFromSerpAPI = async (question) => {
       params: {
         engine: 'google',
         q: question,
-        hl: 'es',
-        gl: 'co',
-        api_key: process.env.SERPAPI_KEY
+        hl: 'es',  // idioma español
+        gl: 'co',  // país Colombia
+        api_key: process.env.SERPAPI_KEY,
       }
     });
 
-    const answerBox = response.data.answer_box;
-    const snippet = response.data.organic_results?.[0]?.snippet;
-
+    const { answer_box, organic_results } = response.data;
     let result = null;
 
-    if (answerBox?.answer) {
-      result = answerBox.answer;
-    } else if (answerBox?.snippet) {
-      result = answerBox.snippet;
-    } else if (snippet) {
-      result = snippet;
+    if (answer_box?.answer) {
+      result = answer_box.answer;
+    } else if (answer_box?.snippet) {
+      result = answer_box.snippet;
+    } else if (organic_results?.[0]?.snippet) {
+      result = organic_results[0].snippet;
     }
 
     if (result) {
-      // Limitar a máximo 3 líneas
+      // Limitar el texto a máximo 3 líneas para WhatsApp
       const lines = result.split('\n');
       return lines.slice(0, 3).join('\n');
     } else {
       return null;
     }
   } catch (error) {
-    console.error('❌ Error al buscar significado:', error.message);
+    console.error('❌ Error al buscar significado en SerpAPI:', error.message);
     return null;
   }
 };
