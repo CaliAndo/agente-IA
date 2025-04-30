@@ -8,7 +8,7 @@ const app = express();
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const sessionData = {};
 const eventosCache = {};
@@ -19,7 +19,7 @@ app.get('/webhook', (req, res) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  if (mode === 'subscribe' && token === process.env.VERIFY_TOKEN) {
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
     console.log('🟢 Webhook verificado correctamente');
     res.status(200).send(challenge);
   } else {
