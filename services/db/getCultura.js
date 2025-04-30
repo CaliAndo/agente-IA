@@ -12,33 +12,29 @@ const pool = new Pool({
 async function getAllCultura() {
   try {
     const museos = await pool.query(`
-      SELECT id, title AS nombre, fuente AS descripcion 
+      SELECT id, title AS nombre, fuente AS descripcion, 'museos' AS origen 
       FROM museos
     `);
 
     const lugaresPdf = await pool.query(`
-      SELECT id, titulo AS nombre, contenido AS descripcion 
+      SELECT id, titulo AS nombre, subtitulo AS descripcion, 'lugares_pdf' AS origen 
       FROM lugares_pdf
     `);
 
     const detallesLugaresPdf = await pool.query(`
-      SELECT id, subtitulo AS nombre, descripcion 
+      SELECT id, subtitulo AS nombre, descripcion, 'detalles_lugares_pdf' AS origen
       FROM detalles_lugares_pdf
     `);
 
-    const resultados = [
+    return [
       ...museos.rows,
       ...lugaresPdf.rows,
       ...detallesLugaresPdf.rows,
     ];
-    
-    return resultados;
   } catch (err) {
-    console.error('Error al obtener cultura:', err);
+    console.error('❌ Error al obtener cultura:', err);
     return [];
   }
 }
 
-module.exports = {
-  getAllCultura,
-};
+module.exports = { getAllCultura };

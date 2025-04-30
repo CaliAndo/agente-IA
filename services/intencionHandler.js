@@ -4,7 +4,7 @@ const stringSimilarity = require('string-similarity');
 const categorias = {
   rumba: ["bailar", "rumba", "fiesta", "concierto", "discoteca", "salir"],
   eventos: ["evento", "eventos", "show", "feria", "festival"],
-  tours: ["tour", "paseo", "aventura", "excursión", "explorar"],
+  tours: ["tour", "paseo", "aventura", "excursión", "explorar","tours"],
   cultura: ["museo", "cultura", "historia", "arte", "teatro", "exposición"],
   recomendaciones: ["recomiéndame", "sugerencias", "qué hacer", "actividades"],
 };

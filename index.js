@@ -59,6 +59,7 @@ app.post('/webhook', async (req, res) => {
       };
 
       try {
+        // 🟠 Usuario respondió con un número
         if (!isNaN(mensaje) && eventosCache[numero]) {
           const indice = parseInt(mensaje) - 1;
           const lista = eventosCache[numero].lista;
@@ -66,10 +67,14 @@ app.post('/webhook', async (req, res) => {
           if (lista[indice]) {
             const item = lista[indice];
             let respuesta = `📚 *${item.nombre}*\n\n`;
-            if (item.descripcion) {
-              respuesta += `📝 ${item.descripcion}\n\n`;
-            }
-            respuesta += `👉 ¿Deseas buscar otra cosa o abrir el menú?\nEscribe *otra búsqueda* o *menú*.`;
+
+            if (item.descripcion) respuesta += `📝 ${item.descripcion}\n\n`;
+            if (item.precio && item.precio !== 'null') respuesta += `💰 Precio: ${item.precio}\n`;
+            if (item.ubicacion && item.ubicacion !== 'null') respuesta += `📍 Lugar: ${item.ubicacion}\n`;
+            if (item.enlace && item.enlace !== 'null') respuesta += `🔗 Más info: ${item.enlace}\n`;
+
+            respuesta += `\n👉 ¿Deseas buscar otra cosa o abrir el menú?\nEscribe *otra búsqueda* o *menú*.`;
+
             await sendMessage(respuesta);
             return res.sendStatus(200);
           } else {
@@ -78,6 +83,20 @@ app.post('/webhook', async (req, res) => {
           }
         }
 
+        // 🎉 Bienvenida
+        if (['hola', 'buenas', 'hey', 'holi'].includes(mensaje)) {
+          sessionData[numero] = { context: 'inicio' };
+          await sendMessage(`👋 ¡Hola! Soy *CaliAndo* 🤖 y estoy aquí para ayudarte a descubrir lo mejor de Cali 🇨🇴💃\n\n👉 *Escribe "menú" para ver opciones o cuéntame qué te interesa*.`);
+          return res.sendStatus(200);
+        }
+
+        // 👋 Despedida
+        if (['gracias', 'chao', 'nos vemos', 'bye'].includes(mensaje)) {
+          await sendMessage(`🙌 ¡Gracias por usar CaliAndo! Espero que disfrutes tu experiencia por Cali. 💃 Si necesitas algo más, solo escríbeme. ¡Hasta pronto!`);
+          return res.sendStatus(200);
+        }
+
+        // 🔁 Ver más
         if (mensaje.includes('ver mas') || mensaje.includes('ver más')) {
           const cache = eventosCache[numero];
           if (!cache) {
@@ -94,37 +113,44 @@ app.post('/webhook', async (req, res) => {
             }
           }
 
+        // 🔁 Volver
         } else if (mensaje.includes('volver')) {
           sessionData[numero] = undefined;
           await sendMessage(`👋 ¡Hola! Soy *CaliAndo* 🤖 y estoy aquí para ayudarte a descubrir lo mejor de Cali 🇨🇴💃\n\n👉 *Escribe "menú" para ver opciones.*`);
 
+        // 📚 Diccionario
         } else if (mensaje.includes('diccionario')) {
           sessionData[numero] = { context: 'diccionario' };
           await sendMessage(`📚 Bienvenido al *diccionario caleño*. Escríbeme una palabra que quieras conocer.\n\nEj: *borondo*, *ñapa*, *enguayabado*`);
 
+        // 📋 Menú
         } else if (mensaje.includes('menu') || mensaje.includes('menú')) {
           await sendMessage(`📋 *Opciones disponibles*:\n- Cultura 🎭\n- Eventos 🎫\n- Tours 🚐\n- Diccionario 📚\n\n👉 Escríbeme lo que quieras explorar.`);
 
-        } else {
-          if (!sessionData[numero]) {
-            sessionData[numero] = { context: 'inicio' };
-            await sendMessage(`👋 ¡Hola! Soy *CaliAndo* 🤖\n\n¿Te antoja algo cultural, quieres parchar o recorrer lugares?\n\n👉 *Escribe "menú" para ver opciones.*`);
-          } else if (sessionData[numero]?.context === 'diccionario') {
-            const significado = await getMeaningFromSerpAPI(mensaje);
-            if (significado) {
-              await sendMessage(`📚 *${mensaje}*:\n\n${significado}\n\n👉 Escribe *otra búsqueda* o *menú*.`);
-            } else {
-              await sendMessage(`😔 No encontré un significado claro para *${mensaje}*. Intenta otra palabra o escribe *menú*.`);
-            }
+        // 🌐 Diccionario activo
+        } else if (sessionData[numero]?.context === 'diccionario') {
+          const significado = await getMeaningFromSerpAPI(mensaje);
+          if (significado) {
+            await sendMessage(`📚 *${mensaje}*:\n\n${significado}\n\n👉 Escribe *otra búsqueda* o *menú*.`);
           } else {
-            const coincidencias = await buscarCoincidencias(mensaje);
-            if (coincidencias.length > 0) {
-              eventosCache[numero] = { lista: coincidencias, pagina: 0 };
-              const respuesta = coincidencias.slice(0, 5).map((r, idx) => `${idx + 1}. ${r.nombre}`).join('\n\n');
-              await sendMessage(`🔎 Opciones encontradas:\n\n${respuesta}\n\n👉 Escribe *otra búsqueda* o *menú*.`);
-            } else {
-              await sendMessage('😔 ¡No encontré resultados! Intenta con *cultura*, *eventos*, *tours* o escribe *menú*.');
-            }
+            await sendMessage(`😔 No encontré un significado claro para *${mensaje}*. Intenta otra palabra o escribe *menú*.`);
+          }
+
+        // 🎯 Búsqueda general
+        } else {
+          let tipo = '';
+          if (mensaje.includes('evento')) tipo = 'eventos';
+          else if (mensaje.includes('cultura')) tipo = 'cultura';
+          else if (mensaje.includes('tour')) tipo = 'tours';
+          else tipo = 'general';
+
+          const resultados = await buscarCoincidencias(mensaje, tipo);
+          if (resultados.length > 0) {
+            eventosCache[numero] = { lista: resultados, pagina: 0 };
+            const respuesta = resultados.slice(0, 5).map((r, idx) => `${idx + 1}. ${r.nombre}`).join('\n\n');
+            await sendMessage(`🔎 Opciones encontradas:\n\n${respuesta}\n\n👉 Escribe el número para ver más información o escribe *ver más*, *menú*, u *otra búsqueda*.`);
+          } else {
+            await sendMessage('😔 ¡No encontré resultados! Intenta con *cultura*, *eventos*, *tours* o escribe *menú*.');
           }
         }
 
@@ -135,7 +161,7 @@ app.post('/webhook', async (req, res) => {
         res.sendStatus(500);
       }
     } else {
-      res.sendStatus(200); // No es mensaje de texto
+      res.sendStatus(200);
     }
   } else {
     res.sendStatus(404);

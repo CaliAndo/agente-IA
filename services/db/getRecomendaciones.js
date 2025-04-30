@@ -12,21 +12,25 @@ const pool = new Pool({
 async function getAllRecomendaciones() {
   try {
     const imperdibles = await pool.query(`
-      SELECT id, titulo AS nombre, link AS descripcion 
+      SELECT id, titulo AS nombre, link AS descripcion, 'imperdibles' AS origen
       FROM imperdibles
     `);
 
+    const lugaresPdf = await pool.query(`
+      SELECT id, titulo AS nombre, subtitulo AS descripcion, 'lugares_pdf' AS origen
+      FROM lugares_pdf
+    `);
+
     const sheetsDetalles = await pool.query(`
-      SELECT id, nombre, descripcion 
+      SELECT id, nombre, descripcion, 'sheets_detalles' AS origen
       FROM sheets_detalles
     `);
 
-    const resultados = [
+    return [
       ...imperdibles.rows,
+      ...lugaresPdf.rows,
       ...sheetsDetalles.rows,
     ];
-
-    return resultados;
   } catch (err) {
     console.error('Error al obtener recomendaciones:', err);
     return [];

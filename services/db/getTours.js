@@ -11,17 +11,24 @@ const pool = new Pool({
 
 async function getAllTours() {
   try {
-    const result = await pool.query(`
-      SELECT id, titulo AS nombre, descripcion, extra, precio, fuente 
+    const civitatis = await pool.query(`
+      SELECT id, titulo AS nombre, descripcion, 'civitatis' AS origen
       FROM civitatis
     `);
-    return result.rows;
+
+    const lugaresPdf = await pool.query(`
+      SELECT id, titulo AS nombre, subtitulo AS descripcion, 'lugares_pdf' AS origen
+      FROM lugares_pdf
+    `);
+
+    return [
+      ...civitatis.rows,
+      ...lugaresPdf.rows,
+    ];
   } catch (err) {
-    console.error('Error al obtener tours:', err);
+    console.error('❌ Error al obtener tours:', err);
     return [];
   }
 }
 
-module.exports = {
-  getAllTours,
-};
+module.exports = { getAllTours };
