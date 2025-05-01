@@ -1,96 +1,43 @@
 const { Pool } = require('pg');
+const { generarEmbedding } = require('../ia/embeddingService');
 require('dotenv').config();
 
 const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_DATABASE,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT || 5432,
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
 async function buscarCoincidencias(mensajeUsuario) {
   try {
     if (!mensajeUsuario || mensajeUsuario.length < 2) return [];
 
-    const queries = [
-      // 🟢 eventos + ubicación (de sheets_detalles)
-      pool.query(`
-        SELECT 
-          e.id, 
-          e.nombre, 
-          e.descripcion, 
-          NULL AS precio, 
-          s.ubicacion, 
-          s.pagina_web AS enlace
-        FROM eventos e
-        LEFT JOIN sheets_detalles s ON s.evento_id = e.id
-        WHERE e.nombre ILIKE $1 OR e.descripcion ILIKE $1
-      `, [`%${mensajeUsuario}%`]),
+    // Generar embedding del mensaje del usuario
+    const userEmbedding = await generarEmbedding(mensajeUsuario);
+    if (!userEmbedding) return [];
 
-      // 🟢 civitatis (tiene precio, fuente como enlace, ubicación no)
-      pool.query(`
-        SELECT 
-          id, 
-          titulo AS nombre, 
-          descripcion, 
-          precio, 
-          NULL AS ubicacion, 
-          fuente AS enlace
-        FROM civitatis
-        WHERE titulo ILIKE $1 OR descripcion ILIKE $1
-      `, [`%${mensajeUsuario}%`]),
+    const vectorPG = `[${userEmbedding.join(',')}]`;
 
-      // 🟢 imperdibles (link como descripción y enlace)
-      pool.query(`
-        SELECT 
-          id, 
-          titulo AS nombre, 
-          link AS descripcion, 
-          NULL AS precio, 
-          NULL AS ubicacion, 
-          link AS enlace
-        FROM imperdibles
-        WHERE titulo ILIKE $1 OR link ILIKE $1
-      `, [`%${mensajeUsuario}%`]),
+    // Buscar los top 15 más similares usando cosine_distance (menor = más similar)
+    const { rows } = await pool.query(
+      `
+      SELECT 
+        id, 
+        nombre, 
+        descripcion, 
+        fuente AS origen, 
+        item_id,
+        1 - (embedding <#> $1) AS similitud
+      FROM embeddings_index
+      ORDER BY embedding <#> $1
+      LIMIT 15;
+      `,
+      [vectorPG]
+    );
 
-      // 🟢 museos (fuente como descripción, link como enlace)
-      pool.query(`
-        SELECT 
-          id, 
-          title AS nombre, 
-          fuente AS descripcion, 
-          NULL AS precio, 
-          NULL AS ubicacion, 
-          link AS enlace
-        FROM museos
-        WHERE title ILIKE $1 OR fuente ILIKE $1
-      `, [`%${mensajeUsuario}%`]),
-
-      // 🟢 sheets_detalles (tiene ubicación, pagina_web como enlace)
-      pool.query(`
-        SELECT 
-          id, 
-          nombre, 
-          descripcion, 
-          NULL AS precio, 
-          ubicacion, 
-          pagina_web AS enlace
-        FROM sheets_detalles
-        WHERE nombre ILIKE $1 OR descripcion ILIKE $1
-      `, [`%${mensajeUsuario}%`]),
-    ];
-
-    const respuestas = await Promise.all(queries);
-    const resultados = [];
-
-    respuestas.forEach((res) => {
-      resultados.push(...res.rows);
-    });
-
-    return resultados.slice(0, 25); // puedes ajustar el límite si deseas
+    // Luego podemos buscar metadatos adicionales si se requiere, por ahora devolvemos lo básico
+    return rows;
   } catch (err) {
-    console.error('❌ Error en búsqueda manual:', err);
+    console.error('❌ Error en búsqueda semántica:', err);
     return [];
   }
 }

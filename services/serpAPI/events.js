@@ -2,14 +2,12 @@ require('dotenv').config();
 const axios = require('axios');
 const { Pool } = require('pg');
 const cron = require('node-cron');
+const { generarEmbedding } = require('../services/ai/embeddingService'); // Ajusta si cambia la ruta
 
 // Configuración PostgreSQL
 const pool = new Pool({
-  host: process.env.PG_HOST,
-  port: process.env.PG_PORT,
-  database: process.env.PG_DATABASE,
-  user: process.env.PG_USER,
-  password: process.env.PG_PASSWORD
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
 const apiKey = process.env.SERPAPI_KEY;
@@ -33,24 +31,29 @@ async function fetchAndSaveEventos() {
     let insertados = 0;
 
     for (const ev of eventos) {
-      const query = `
-        INSERT INTO eventos (nombre, descripcion, fecha, ubicacion, categoria, fuente)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT DO NOTHING
+      const nombre = ev.title || 'Sin título';
+      const descripcion = ev.description || '';
+      const fecha = ev.date?.start_date ? new Date(ev.date.start_date) : null;
+      const ubicacion = ev.address || '';
+      const categoria = 'evento';
+
+      // Verificar si el evento ya existe
+      const res = await pool.query('SELECT id FROM eventos WHERE nombre = $1', [nombre]);
+      if (res.rowCount > 0) continue;
+
+      const texto = `${nombre}. ${descripcion}`;
+      const embedding = await generarEmbedding(texto);
+
+      const insertQuery = `
+        INSERT INTO eventos (nombre, descripcion, fecha, ubicacion, categoria, fuente, embedding)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
       `;
 
-      await pool.query(query, [
-        ev.title || 'Sin título',
-        ev.description || '',
-        ev.date?.start_date ? new Date(ev.date.start_date) : null,
-        ev.address || '',
-        'evento',
-        fuente
-      ]);
+      await pool.query(insertQuery, [nombre, descripcion, fecha, ubicacion, categoria, fuente, embedding]);
       insertados++;
     }
 
-    console.log(`✅ ${insertados} eventos insertados en la base de datos desde SerpAPI.\n`);
+    console.log(`✅ ${insertados} eventos insertados desde SerpAPI.\n`);
   } catch (error) {
     console.error('❌ Error al obtener eventos de SerpAPI:', error.message);
   }
@@ -59,7 +62,7 @@ async function fetchAndSaveEventos() {
 // Ejecutar inmediatamente
 fetchAndSaveEventos();
 
-// Programar para que corra cada 24 horas (a medianoche)
+// Programar ejecución diaria a medianoche
 cron.schedule('0 0 * * *', () => {
   console.log('🕛 Ejecutando fetchAndSaveEventos programado...');
   fetchAndSaveEventos();

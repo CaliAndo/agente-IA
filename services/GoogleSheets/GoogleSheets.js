@@ -1,22 +1,20 @@
 const axios = require('axios');
 const { Pool } = require('pg');
 const cron = require('node-cron');
+const { generarEmbedding } = require('../services/ai/embeddingService'); // asegúrate de que esta ruta sea válida
+require('dotenv').config();
 
-// Configuración de PostgreSQL
+// Conexión Supabase
 const pool = new Pool({
-  host: process.env.PG_HOST || 'localhost',
-  port: process.env.PG_PORT || 5432,
-  database: process.env.PG_DATABASE || 'Agente IA',
-  user: process.env.PG_USER || 'jay',
-  password: process.env.PG_PASSWORD || 'Jay123'
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
-// Configuración del Sheet
+// Configuración del Google Sheet
 const sheetId = '1MMUh5RjXAtRH9EJiPHVhOGxGGEEqhbEI10F5LciBMMg';
 const hoja = 'Hoja1';
 const url = `https://opensheet.elk.sh/${sheetId}/${hoja}`;
 
-// Función principal para insertar eventos desde Google Sheets
 async function insertarEventosDesdeSheets() {
   try {
     console.log('📥 Descargando datos desde Google Sheets...');
@@ -28,66 +26,67 @@ async function insertarEventosDesdeSheets() {
     let insertados = 0;
 
     for (const item of data) {
-      const nombre = item['Nombre del sitio'] || '';  // Ahora se usa "Nombre del sitio"
-      const descripcion = item['¿Qué puedes encontrar?'] || '';  // O ajusta esta clave según tu hoja
+      const nombre = item['Nombre del sitio'] || '';
+      const descripcion = item['¿Qué puedes encontrar?'] || '';
       const ubicacion = item.Ubicacion || '';
       const tipo_de_lugar = item['Tipo de lugar'] || '';
       const redes_sociales = item['Redes sociales'] || '';
       const pagina_web = item['Página Web'] || '';
       const zona = item.Zona || '';
       const ingreso_permitido = item['Ingreso permitido a'] || '';
-      const categoria = 'sheet';
-      
-      // Validar que el nombre no esté vacío
+
       if (!nombre) {
-        console.log(`⚠️ Evento sin nombre para: ${nombre}. No se insertará.`);
-        continue; // Si el nombre está vacío, no insertamos el evento
+        console.log(`⚠️ Evento sin nombre. Saltando.`);
+        continue;
       }
 
-      // 1. Obtener el `evento_id` de la tabla `eventos` usando el nombre
       let evento_id = await getEventoIdByTitulo(nombre);
-      
-      // 2. Si no existe el `evento_id`, inserta un nuevo evento en la tabla `eventos`
+
       if (!evento_id) {
-        console.log(`⚠️ No se encontró evento_id para el sitio: ${nombre}. Insertando nuevo evento...`);
-        const queryInsertEvento = `
-          INSERT INTO eventos (nombre, descripcion)
-          VALUES ($1, $2)
+        console.log(`➕ Insertando nuevo evento: ${nombre}`);
+        const texto = `${nombre}. ${descripcion}`;
+        const embedding = await generarEmbedding(texto);
+
+        const insertEventoQuery = `
+          INSERT INTO eventos (nombre, descripcion, embedding)
+          VALUES ($1, $2, $3)
           RETURNING id
         `;
-        const result = await pool.query(queryInsertEvento, [nombre, descripcion]);
-        evento_id = result.rows[0].id;  // Captura el nuevo ID insertado
-        console.log(`Nuevo evento insertado con ID: ${evento_id}`);
+        const insertEventoResult = await pool.query(insertEventoQuery, [nombre, descripcion, embedding]);
+        evento_id = insertEventoResult.rows[0].id;
+
+        console.log(`🧠 Embedding generado e insertado para evento ID: ${evento_id}`);
       }
 
-      // 3. Insertar en `sheets_detalles` con el `evento_id` correspondiente
-      const query = `
-        INSERT INTO "sheets_detalles" (evento_id, nombre, descripcion, ubicacion, tipo_de_lugar, redes_sociales, pagina_web, zona, ingreso_permitido)
+      const insertDetalleQuery = `
+        INSERT INTO sheets_detalles (evento_id, nombre, descripcion, ubicacion, tipo_de_lugar, redes_sociales, pagina_web, zona, ingreso_permitido)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT DO NOTHING
       `;
-      
-      await pool.query(query, [evento_id, nombre, descripcion, ubicacion, tipo_de_lugar, redes_sociales, pagina_web, zona, ingreso_permitido]);
+
+      await pool.query(insertDetalleQuery, [
+        evento_id, nombre, descripcion, ubicacion, tipo_de_lugar,
+        redes_sociales, pagina_web, zona, ingreso_permitido
+      ]);
+
       insertados++;
     }
 
-    console.log(`✅ Se insertaron ${insertados} eventos en la base de datos.`);
+    console.log(`✅ ${insertados} eventos procesados exitosamente.`);
   } catch (error) {
     console.error('❌ Error al insertar eventos:', error.message);
   }
 }
 
-// Función para obtener el evento_id a partir del nombre
 async function getEventoIdByTitulo(nombre) {
-  const query = 'SELECT id FROM eventos WHERE nombre = $1'; 
-  const res = await pool.query(query, [nombre]);
+  const res = await pool.query('SELECT id FROM eventos WHERE nombre = $1', [nombre]);
   return res.rows[0]?.id || null;
 }
 
-// Programar la ejecución cada 24 horas (esto ejecutará la función cada día a medianoche)
+// Ejecutar cada 24 horas a medianoche
 cron.schedule('0 0 * * *', () => {
-  console.log('🕒 Ejecutando la tarea programada para actualizar los eventos...');
-  insertarEventosDesdeSheets();  // Llamamos la función para insertar los eventos
+  console.log('🕒 Ejecutando tarea programada para insertar eventos desde Sheets...');
+  insertarEventosDesdeSheets();
 });
 
-console.log('✅ Sistema de actualización programada activo, ejecutando cada 24 horas.');
+console.log('✅ Sistema de actualización de Sheets activo cada 24 horas.');

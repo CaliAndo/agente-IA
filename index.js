@@ -3,6 +3,7 @@ const express = require('express');
 const axios = require('axios');
 const { buscarCoincidencias } = require('./services/db/searchEngine');
 const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
+const { getDetallePorFuente } = require('./services/db/getDetalle');
 
 const app = express();
 app.use(express.json());
@@ -66,15 +67,24 @@ app.post('/webhook', async (req, res) => {
 
           if (lista[indice]) {
             const item = lista[indice];
-            let respuesta = `📚 *${item.nombre}*\n\n`;
+            const detalle = await getDetallePorFuente(item.origen, item.id);
 
-            if (item.descripcion) respuesta += `📝 ${item.descripcion}\n\n`;
-            if (item.precio && item.precio !== 'null') respuesta += `💰 Precio: ${item.precio}\n`;
-            if (item.ubicacion && item.ubicacion !== 'null') respuesta += `📍 Lugar: ${item.ubicacion}\n`;
-            if (item.enlace && item.enlace !== 'null') respuesta += `🔗 Más info: ${item.enlace}\n`;
+            let respuesta = `📚 *${detalle.nombre}*
 
-            respuesta += `\n👉 ¿Deseas buscar otra cosa o abrir el menú?\nEscribe *otra búsqueda* o *menú*.`;
+`;
+            if (detalle.descripcion) respuesta += `📝 ${detalle.descripcion}
 
+`;
+            if (detalle.precio && detalle.precio !== 'null') respuesta += `💰 Precio: ${detalle.precio}
+`;
+            if (detalle.ubicacion && detalle.ubicacion !== 'null') respuesta += `📍 Lugar: ${detalle.ubicacion}
+`;
+            if (detalle.enlace && detalle.enlace !== 'null') respuesta += `🔗 Más info: ${detalle.enlace}
+`;
+
+            respuesta += `
+👉 ¿Deseas buscar otra cosa o abrir el menú?
+Escribe *otra búsqueda* o *menú*.`;
             await sendMessage(respuesta);
             return res.sendStatus(200);
           } else {
@@ -86,7 +96,7 @@ app.post('/webhook', async (req, res) => {
         // 🎉 Bienvenida
         if (['hola', 'buenas', 'hey', 'holi'].includes(mensaje)) {
           sessionData[numero] = { context: 'inicio' };
-          await sendMessage(`👋 ¡Hola! Soy *CaliAndo* 🤖 y estoy aquí para ayudarte a descubrir lo mejor de Cali 🇨🇴💃\n\n👉 *Escribe "menú" para ver opciones o cuéntame qué te interesa*.`);
+          await sendMessage(`👋 ¡Hola! Soy *CaliAndo* y estoy aquí para ayudarte a descubrir lo mejor de Cali 🇨🇴💃\n\n👉 *Escribe "menú" para ver opciones o cuéntame qué te interesa*.`);
           return res.sendStatus(200);
         }
 
@@ -116,7 +126,7 @@ app.post('/webhook', async (req, res) => {
         // 🔁 Volver
         } else if (mensaje.includes('volver')) {
           sessionData[numero] = undefined;
-          await sendMessage(`👋 ¡Hola! Soy *CaliAndo* 🤖 y estoy aquí para ayudarte a descubrir lo mejor de Cali 🇨🇴💃\n\n👉 *Escribe "menú" para ver opciones.*`);
+          await sendMessage(`👋 ¡Hola! Soy *CaliAndo* y estoy aquí para ayudarte a descubrir lo mejor de Cali 🇨🇴💃\n\n👉 *Escribe "menú" para ver opciones.*`);
 
         // 📚 Diccionario
         } else if (mensaje.includes('diccionario')) {

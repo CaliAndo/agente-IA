@@ -1,30 +1,29 @@
+// 📁 services/db/getCultura.js
 const { Pool } = require('pg');
 require('dotenv').config();
 
 const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT || 5432,
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
 async function getAllCultura() {
   try {
     const museos = await pool.query(`
-      SELECT id, title AS nombre, fuente AS descripcion, 'museos' AS origen 
+      SELECT id, title AS nombre, fuente AS descripcion, 'museos' AS fuente 
       FROM museos
     `);
-
+    
     const lugaresPdf = await pool.query(`
-      SELECT id, titulo AS nombre, subtitulo AS descripcion, 'lugares_pdf' AS origen 
+      SELECT id, titulo AS nombre, subtitulo AS descripcion, 'lugares_pdf' AS fuente 
       FROM lugares_pdf
     `);
-
+    
     const detallesLugaresPdf = await pool.query(`
-      SELECT id, subtitulo AS nombre, descripcion, 'detalles_lugares_pdf' AS origen
+      SELECT id, subtitulo AS nombre, descripcion, 'detalles_lugares_pdf' AS fuente
       FROM detalles_lugares_pdf
     `);
+    
 
     return [
       ...museos.rows,
