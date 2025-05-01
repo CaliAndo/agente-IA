@@ -11,13 +11,32 @@ async function buscarCoincidencias(mensajeUsuario) {
   try {
     if (!mensajeUsuario || mensajeUsuario.length < 2) return [];
 
-    // Generar embedding del mensaje del usuario
-    const userEmbedding = await generarEmbedding(mensajeUsuario);
-    if (!userEmbedding) return [];
+    // Buscar si ya existe un embedding para este texto en cache
+    const { rows: cacheRows } = await pool.query(
+      `SELECT embedding FROM user_query_embeddings WHERE texto = $1 LIMIT 1;`,
+      [mensajeUsuario]
+    );
 
-    const vectorPG = `[${userEmbedding.join(',')}]`;
+    let vectorPG;
 
-    // Buscar los top 15 más similares usando cosine_distance (menor = más similar)
+    if (cacheRows.length > 0) {
+      // Ya existe el embedding, lo usamos directamente
+      vectorPG = cacheRows[0].embedding;
+    } else {
+      // No existe, lo generamos
+      const userEmbedding = await generarEmbedding(mensajeUsuario);
+      if (!userEmbedding) return [];
+
+      vectorPG = `[${userEmbedding.join(',')}]`;
+
+      // Guardar embedding en la tabla de cache
+      await pool.query(
+        `INSERT INTO user_query_embeddings (texto, embedding) VALUES ($1, $2)`,
+        [mensajeUsuario, vectorPG]
+      );
+    }
+
+    // Buscar los top 15 más similares
     const { rows } = await pool.query(
       `
       SELECT 
@@ -34,7 +53,6 @@ async function buscarCoincidencias(mensajeUsuario) {
       [vectorPG]
     );
 
-    // Luego podemos buscar metadatos adicionales si se requiere, por ahora devolvemos lo básico
     return rows;
   } catch (err) {
     console.error('❌ Error en búsqueda semántica:', err);
