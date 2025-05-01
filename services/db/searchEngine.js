@@ -7,6 +7,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+
 async function buscarCoincidencias(mensajeUsuario) {
   try {
     if (!mensajeUsuario || mensajeUsuario.length < 2) return [];
