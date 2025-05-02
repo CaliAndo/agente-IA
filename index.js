@@ -1,9 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
-const { buscarCoincidencias } = require('./services/db/searchEngine');
-const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
 const { getDetallePorFuente } = require('./services/db/getDetalle');
+const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
 
 const app = express();
 app.use(express.json());
@@ -14,7 +13,15 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const sessionData = {};
 const eventosCache = {};
 
-// 🌐 Verificación del webhook (GET)
+const resetUserState = (numero) => {
+  sessionData[numero] = { context: 'inicio' };
+  delete eventosCache[numero];
+};
+
+const normalizar = (txt) =>
+  txt.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
+// 🌐 Verificación del webhook
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -28,7 +35,7 @@ app.get('/webhook', (req, res) => {
   }
 });
 
-// 📩 Recepción de mensajes (POST)
+// 📩 Recepción de mensajes
 app.post('/webhook', async (req, res) => {
   const body = req.body;
 
@@ -39,8 +46,8 @@ app.post('/webhook', async (req, res) => {
 
     if (message && message.type === 'text') {
       const numero = message.from;
-      const mensaje = message.text.body.toLowerCase().trim();
-      console.log('📨 Mensaje recibido:', mensaje);
+      const rawMensaje = message.text.body;
+      const mensaje = normalizar(rawMensaje);
 
       const sendMessage = async (text) => {
         await axios.post(
@@ -60,131 +67,137 @@ app.post('/webhook', async (req, res) => {
       };
 
       try {
-        // 🟠 Usuario respondió con un número
+        // 🔁 Reinicio de flujo
+        if (
+          mensaje.includes('menu') ||
+          mensaje.includes('volver') ||
+          mensaje.includes('otra busqueda')
+        ) {
+          resetUserState(numero);
+          await sendMessage(`📋 Menú principal:\n\nPuedes escribirme algo como:\n• *eventos*\n• *cultura*\n• *tour*\n• *salsa*\n\nY te mostraré lo mejor de Cali 🇨🇴`);
+          return res.sendStatus(200);
+        }
+
+        // 👋 Saludo
+        if (['hola', 'buenas', 'hey', 'holi'].includes(mensaje)) {
+          resetUserState(numero); // deja context: 'inicio'
+          await sendMessage(`👋 ¡Hola! Soy *CaliAndo* y estoy aquí para ayudarte a descubrir lo mejor de Cali 🇨🇴💃
+
+👉 Escríbeme algo como *eventos*, *tour*, *cultura* o *diccionario* para comenzar.`);
+          return res.sendStatus(200);
+        }
+
+        // 🔍 Ver detalle por número
         if (!isNaN(mensaje) && eventosCache[numero]) {
-          const indice = parseInt(mensaje) - 1;
+          const index = parseInt(mensaje) - 1;
           const lista = eventosCache[numero].lista;
 
-          if (lista[indice]) {
-            const item = lista[indice];
-            const detalle = await getDetallePorFuente(item.origen, item.id);
+          if (lista[index]) {
+            const item = lista[index];
+            console.log('🔍 Buscando detalle:', item);
 
-            let respuesta = `📚 *${detalle.nombre}*
+            const detalle = await getDetallePorFuente(item.fuente, item.referencia_id);
+            console.log('📄 Resultado detalle:', detalle);
 
-`;
-            if (detalle.descripcion) respuesta += `📝 ${detalle.descripcion}
+            if (!detalle) {
+              await sendMessage('❌ No encontré detalles para esa opción.');
+              return res.sendStatus(200);
+            }
 
-`;
-            if (detalle.precio && detalle.precio !== 'null') respuesta += `💰 Precio: ${detalle.precio}
-`;
-            if (detalle.ubicacion && detalle.ubicacion !== 'null') respuesta += `📍 Lugar: ${detalle.ubicacion}
-`;
-            if (detalle.enlace && detalle.enlace !== 'null') respuesta += `🔗 Más info: ${detalle.enlace}
-`;
+            let respuesta = `📚 *${detalle.nombre}*\n\n`;
+            if (detalle.descripcion) respuesta += `📝 ${detalle.descripcion}\n\n`;
+            if (detalle.precio && detalle.precio !== 'null') respuesta += `💰 Precio: ${detalle.precio}\n`;
+            if (detalle.ubicacion && detalle.ubicacion !== 'null') respuesta += `📍 Lugar: ${detalle.ubicacion}\n`;
+            if (detalle.enlace && detalle.enlace !== 'null') respuesta += `🔗 Más info: ${detalle.enlace}\n`;
 
-            respuesta += `
-            👉 ¿Deseas buscar otra cosa o abrir el menú?
-            Escribe *otra búsqueda* o *menú*.`;
+            respuesta += `\n👉 Escribe *otra búsqueda* o *menú* para continuar.`;
+
+            resetUserState(numero);
             await sendMessage(respuesta);
             return res.sendStatus(200);
           } else {
-            await sendMessage('❌ No encontré esa opción. Intenta con un número válido de la lista.');
+            await sendMessage('❌ Opción inválida. Escribe un número de la lista.');
             return res.sendStatus(200);
           }
         }
 
-        // 🎉 Bienvenida
-        if (['hola', 'buenas', 'hey', 'holi'].includes(mensaje)) {
-          sessionData[numero] = { context: 'inicio' };
-          await sendMessage(`👋 ¡Hola! Soy *CaliAndo* y estoy aquí para ayudarte a descubrir lo mejor de Cali 🇨🇴💃\n\n👉 *Escribe "menú" para ver opciones o cuéntame qué te interesa*.`);
-          return res.sendStatus(200);
-        }
-
-        // 👋 Despedida
-        if (['gracias', 'chao', 'nos vemos', 'bye'].includes(mensaje)) {
-          await sendMessage(`🙌 ¡Gracias por usar CaliAndo! Espero que disfrutes tu experiencia por Cali. 💃 Si necesitas algo más, solo escríbeme. ¡Hasta pronto!`);
-          return res.sendStatus(200);
-        }
-
-        // 🔁 Ver más
-        if (mensaje.includes('ver mas') || mensaje.includes('ver más')) {
+        // ➕ Ver más resultados
+        if (mensaje.includes('ver mas')) {
           const cache = eventosCache[numero];
           if (!cache) {
-            await sendMessage('ℹ️ Primero dime qué te gustaría hacer (ej: “quiero salir”, “tour”, “cultura”)');
-          } else {
-            const inicio = (cache.pagina + 1) * 5;
-            const nuevos = cache.lista.slice(inicio, inicio + 5);
-            if (nuevos.length > 0) {
-              cache.pagina++;
-              const respuesta = nuevos.map((r, idx) => `${inicio + idx + 1}. ${r.nombre}`).join('\n\n');
-              await sendMessage(`📍 Más recomendaciones para ti:\n\n${respuesta}\n\n👉 ¿Deseas buscar otra cosa o abrir el menú?\nEscribe *otra búsqueda* o *menú*.`);
-            } else {
-              await sendMessage('📭 Ya viste todas las recomendaciones disponibles. ¡Pronto habrá más!');
-            }
+            await sendMessage('ℹ️ No hay resultados activos. Escribe algo como *tour* o *eventos*.');
+            return res.sendStatus(200);
           }
 
-        // 🔁 Volver
-        } else if (mensaje.includes('volver')) {
-          sessionData[numero] = undefined;
-          await sendMessage(`👋 ¡Hola! Soy *CaliAndo* y estoy aquí para ayudarte a descubrir lo mejor de Cali 🇨🇴💃\n\n👉 *Escribe "menú" para ver opciones.*`);
+          const inicio = (cache.pagina + 1) * 5;
+          const nuevos = cache.lista.slice(inicio, inicio + 5);
+
+          if (nuevos.length > 0) {
+            cache.pagina++;
+            const respuesta = nuevos.map((r, i) => `${inicio + i + 1}. ${r.nombre}`).join('\n\n');
+            await sendMessage(`📍 Más recomendaciones:\n\n${respuesta}\n\n👉 Escribe un número o *otra búsqueda* para continuar.`);
+          } else {
+            await sendMessage('📭 Ya viste todos los resultados disponibles.');
+          }
+          return res.sendStatus(200);
+        }
 
         // 📚 Diccionario
-        } else if (mensaje.includes('diccionario')) {
+        if (mensaje.includes('diccionario')) {
           sessionData[numero] = { context: 'diccionario' };
-          await sendMessage(`📚 Bienvenido al *diccionario caleño*. Escríbeme una palabra que quieras conocer.\n\nEj: *borondo*, *ñapa*, *enguayabado*`);
+          await sendMessage(`📚 Bienvenido al *diccionario caleño*. Escríbeme una palabra para explicártela.\n\nEj: *ñapa*, *enguayabado*, *borondo*`);
+          return res.sendStatus(200);
+        }
 
-        // 📋 Menú
-        } else if (mensaje.includes('menu') || mensaje.includes('menú')) {
-          await sendMessage(`📋 *Opciones disponibles*:\n- Cultura 🎭\n- Eventos 🎫\n- Tours 🚐\n- Diccionario 📚\n\n👉 Escríbeme lo que quieras explorar.`);
-
-        // 🌐 Diccionario activo
-        } else if (sessionData[numero]?.context === 'diccionario') {
+        if (sessionData[numero]?.context === 'diccionario') {
           const significado = await getMeaningFromSerpAPI(mensaje);
           if (significado) {
-            await sendMessage(`📚 *${mensaje}*:\n\n${significado}\n\n👉 Escribe *otra búsqueda* o *menú*.`);
+            await sendMessage(`📚 *${mensaje}*:\n\n${significado}\n\n👉 Escribe *otra búsqueda* o *menú* para continuar.`);
           } else {
-            await sendMessage(`😔 No encontré un significado claro para *${mensaje}*. Intenta otra palabra o escribe *menú*.`);
+            await sendMessage(`😔 No encontré el significado de *${mensaje}*. Prueba otra palabra.`);
+          }
+          return res.sendStatus(200);
+        }
+
+        // 🧠 Nueva búsqueda (solo si no hay otra en curso)
+        const contexto = sessionData[numero]?.context;
+        if (!eventosCache[numero] && (contexto === 'inicio' || contexto === 'resultados' || !contexto)) {
+          console.log('🔎 Buscando coincidencias para:', mensaje);
+          const respuesta = await axios.post("http://localhost:8000/buscar-coincidencia", { texto: mensaje });
+
+          const lista = respuesta.data.resultados || [];
+
+          if (!respuesta.data.ok || lista.length === 0) {
+            await sendMessage('😔 No encontré nada con esas palabras. Intenta con *eventos*, *tour*, *salsa*, etc.');
+            return res.sendStatus(200);
           }
 
-        // 🎯 Búsqueda general
-            } else {
-              const { generarEmbedding } = require('./services/openai/embeddingservice');
-              const { buscarSimilaresDesdeEmbeddings } = require('./services/db/buscarEmbeddings');
-            
-              const embedding = await generarEmbedding(mensaje);
-              if (!embedding) {
-                await sendMessage('❌ No pude procesar tu mensaje. Intenta con otra frase.');
-                return res.sendStatus(200);
-              }
-            
-              const coincidencias = await buscarSimilaresDesdeEmbeddings(embedding);
-              if (!coincidencias || coincidencias.length === 0) {
-                await sendMessage('😔 No encontré resultados. Intenta con palabras como *eventos*, *cultura*, o *tour*.');
-                return res.sendStatus(200);
-              }
-            
-              eventosCache[numero] = {
-                lista: coincidencias,
-                pagina: 0,
-              };
-            
-              const respuesta = coincidencias.slice(0, 5).map((r, idx) => `${idx + 1}. ${r.nombre}`).join('\n\n');
-              await sendMessage(`🔎 Opciones encontradas:\n\n${respuesta}\n\n👉 Escribe el número para ver más información o escribe *ver más*, *menú*, u *otra búsqueda*.`);
-            }
-            
-              res.sendStatus(200);
-            } catch (error) {
-              console.error('💥 Error en el webhook:', error);
-              await sendMessage('❌ Ocurrió un error. Intenta más tarde.');
-              res.sendStatus(500);
-            }
-          } else {
-            res.sendStatus(200);
-          }
-        } else {
-          res.sendStatus(404);
+          eventosCache[numero] = { lista, pagina: 0 };
+          sessionData[numero] = { context: 'resultados' };
+
+          const primeros = lista.slice(0, 5);
+          const texto = primeros.map((item, i) => `${i + 1}. ${item.nombre}`).join('\n\n');
+
+          await sendMessage(`🔎 Encontré estas opciones:\n\n${texto}\n\n👉 Escribe un número para ver más detalles o *ver más* para más opciones.`);
+          return res.sendStatus(200);
         }
-      });
+
+        // 🧭 Default: ya hay búsqueda activa
+        await sendMessage('📌 Ya tienes una búsqueda activa. Escribe un número, *ver más* o *otra búsqueda* para continuar.');
+        return res.sendStatus(200);
+
+      } catch (error) {
+        console.error('💥 Error en el webhook:', error);
+        await sendMessage('❌ Ocurrió un error. Intenta de nuevo más tarde.');
+        return res.sendStatus(500);
+      }
+    } else {
+      return res.sendStatus(200);
+    }
+  } else {
+    return res.sendStatus(404);
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 CaliAndo Bot escuchando en http://localhost:${PORT}`);

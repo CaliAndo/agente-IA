@@ -1,18 +1,44 @@
-const OpenAI = require('openai');
+const { Pool } = require('pg');
 require('dotenv').config();
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
-(async () => {
-  try {
-    const result = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: "Esto es una prueba directa desde un archivo de test.",
-    });
-    console.log("✅ Embedding generado:", result.data[0].embedding.slice(0, 5), "...");
-  } catch (error) {
-    console.error("❌ Error:", error.response?.data || error.message);
+const { generarEmbeddingConBackoff } = require('./services/ia/embeddingService');
+
+async function testInsertEmbedding() {
+  const texto = "quiero bailar salsa";
+  const embedding = await generarEmbeddingConBackoff(texto);
+
+  if (!embedding) {
+    console.error("❌ No se pudo generar el embedding");
+    return;
   }
-})();
+
+  const client = await pool.connect();
+
+  try {
+    const query = `
+      INSERT INTO embeddings_index (nombre, descripcion, fuente, referencia_id, embedding)
+      VALUES ($1, $2, $3, $4, $5)
+    `;
+    const values = [
+      'Texto de prueba',
+      texto,
+      'test_manual',
+      9999,
+      embedding, // debe ser un array de floats si usas pgvector
+    ];
+
+    await client.query(query, values);
+    console.log('✅ Embedding insertado correctamente en la tabla.');
+  } catch (err) {
+    console.error('❌ Error al insertar en PostgreSQL:', err.message);
+  } finally {
+    client.release();
+  }
+}
+
+testInsertEmbedding();

@@ -1,5 +1,4 @@
 const { Pool } = require('pg');
-const { generarEmbedding } = require('../ia/embeddingService');
 require('dotenv').config();
 
 const pool = new Pool({

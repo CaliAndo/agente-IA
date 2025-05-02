@@ -1,29 +1,31 @@
-const OpenAI = require('openai');
 require('dotenv').config();
+const OpenAI = require('openai');
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+async function generarEmbeddingConBackoff(texto, intento = 0) {
+  const maxReintentos = 5;
+  const delay = Math.pow(2, intento) * 1000; // backoff exponencial
 
-async function generarEmbedding(texto) {
   try {
     const response = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
+      model: 'text-embedding-ada-002',
       input: texto,
     });
-
-    if (response?.data?.length > 0 && response.data[0].embedding) {
-      return response.data[0].embedding;
-    } else {
-      throw new Error('No se obtuvo embedding válido');
-    }
+    console.log('✅ Embedding generado:\n', response.data[0].embedding.slice(0, 5), '...');
+    return response.data[0].embedding;
   } catch (error) {
-    console.error('❌ Error generando embedding para texto:', texto.slice(0, 100));
-    console.error('🔧 Detalle:', error.response?.data || error.message);
-    return null;
-  }
-}
+    const status = error?.status || error?.response?.status;
 
-module.exports = {
-  generarEmbedding,
-};
+    if (status === 429 && intento < maxReintentos) {
+      const retryAfter = error.response?.headers?.['retry-after'];
+      console.warn(`⚠️ Rate limit alcanzado. Retry-After: ${retryAfter || 'no especificado'}. Reintentando en ${delay / 1000}s...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return generarEmbeddingConBackoff(texto, intento + 1);
+    } else {
+      console.error('❌ Error generando embedding:', error.response?.data || error.message);
+      return null;
+    }
+  }
+}  
+
+module.exports = { generarEmbeddingConBackoff };

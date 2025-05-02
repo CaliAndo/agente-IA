@@ -3,7 +3,7 @@ require('dotenv').config();
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, // o usa user, host, db, password, port manualmente
+  connectionString: process.env.DATABASE_URL, 
 });
 
 async function insertarEventos(eventos) {
