@@ -83,8 +83,8 @@ app.post('/webhook', async (req, res) => {
 `;
 
             respuesta += `
-👉 ¿Deseas buscar otra cosa o abrir el menú?
-Escribe *otra búsqueda* o *menú*.`;
+            👉 ¿Deseas buscar otra cosa o abrir el menú?
+            Escribe *otra búsqueda* o *menú*.`;
             await sendMessage(respuesta);
             return res.sendStatus(200);
           } else {
@@ -147,36 +147,44 @@ Escribe *otra búsqueda* o *menú*.`;
           }
 
         // 🎯 Búsqueda general
-        } else {
-          let tipo = '';
-          if (mensaje.includes('evento')) tipo = 'eventos';
-          else if (mensaje.includes('cultura')) tipo = 'cultura';
-          else if (mensaje.includes('tour')) tipo = 'tours';
-          else tipo = 'general';
-
-          const resultados = await buscarCoincidencias(mensaje, tipo);
-          if (resultados.length > 0) {
-            eventosCache[numero] = { lista: resultados, pagina: 0 };
-            const respuesta = resultados.slice(0, 5).map((r, idx) => `${idx + 1}. ${r.nombre}`).join('\n\n');
-            await sendMessage(`🔎 Opciones encontradas:\n\n${respuesta}\n\n👉 Escribe el número para ver más información o escribe *ver más*, *menú*, u *otra búsqueda*.`);
+            } else {
+              const { generarEmbedding } = require('./services/openai/embeddingservice');
+              const { buscarSimilaresDesdeEmbeddings } = require('./services/db/buscarEmbeddings');
+            
+              const embedding = await generarEmbedding(mensaje);
+              if (!embedding) {
+                await sendMessage('❌ No pude procesar tu mensaje. Intenta con otra frase.');
+                return res.sendStatus(200);
+              }
+            
+              const coincidencias = await buscarSimilaresDesdeEmbeddings(embedding);
+              if (!coincidencias || coincidencias.length === 0) {
+                await sendMessage('😔 No encontré resultados. Intenta con palabras como *eventos*, *cultura*, o *tour*.');
+                return res.sendStatus(200);
+              }
+            
+              eventosCache[numero] = {
+                lista: coincidencias,
+                pagina: 0,
+              };
+            
+              const respuesta = coincidencias.slice(0, 5).map((r, idx) => `${idx + 1}. ${r.nombre}`).join('\n\n');
+              await sendMessage(`🔎 Opciones encontradas:\n\n${respuesta}\n\n👉 Escribe el número para ver más información o escribe *ver más*, *menú*, u *otra búsqueda*.`);
+            }
+            
+              res.sendStatus(200);
+            } catch (error) {
+              console.error('💥 Error en el webhook:', error);
+              await sendMessage('❌ Ocurrió un error. Intenta más tarde.');
+              res.sendStatus(500);
+            }
           } else {
-            await sendMessage('😔 ¡No encontré resultados! Intenta con *cultura*, *eventos*, *tours* o escribe *menú*.');
+            res.sendStatus(200);
           }
+        } else {
+          res.sendStatus(404);
         }
-
-        res.sendStatus(200);
-      } catch (error) {
-        console.error('💥 Error en el webhook:', error);
-        await sendMessage('❌ Ocurrió un error. Intenta más tarde.');
-        res.sendStatus(500);
-      }
-    } else {
-      res.sendStatus(200);
-    }
-  } else {
-    res.sendStatus(404);
-  }
-});
+      });
 
 app.listen(PORT, () => {
   console.log(`🚀 CaliAndo Bot escuchando en http://localhost:${PORT}`);
