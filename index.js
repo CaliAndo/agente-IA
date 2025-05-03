@@ -74,16 +74,16 @@ app.post('/webhook', async (req, res) => {
           mensaje.includes('otra busqueda')
         ) {
           resetUserState(numero);
-          await sendMessage(`📋 Menú principal:\n\nPuedes escribirme algo como:\n• *eventos*\n• *cultura*\n• *tour*\n• *salsa*\n\nY te mostraré lo mejor de Cali 🇨🇴`);
+          await sendMessage(`📋 Menú principal:\n\nPuedes escribirme algo como:\n• *eventos*\n• *cultura*\n• *tour*\n• *salsa*\n\nY te mostraré lo mejor de Cali 🇰🇴`);
           return res.sendStatus(200);
         }
 
         // 👋 Saludo
         if (['hola', 'buenas', 'hey', 'holi'].includes(mensaje)) {
           resetUserState(numero); // deja context: 'inicio'
-          await sendMessage(`👋 ¡Hola! Soy *CaliAndo* y estoy aquí para ayudarte a descubrir lo mejor de Cali 🇨🇴💃
+          await sendMessage(`👋 ¡Hola! Soy *CaliAndo* y estoy aquí para ayudarte a descubrir lo mejor de Cali 🇰🇴💃
 
-👉 Escríbeme algo como *eventos*, *tour*, *cultura* o *diccionario* para comenzar.`);
+🔀 Escríbeme algo como *eventos*, *tour*, *cultura* o *diccionario* para comenzar.`);
           return res.sendStatus(200);
         }
 
@@ -105,12 +105,12 @@ app.post('/webhook', async (req, res) => {
             }
 
             let respuesta = `📚 *${detalle.nombre}*\n\n`;
-            if (detalle.descripcion) respuesta += `📝 ${detalle.descripcion}\n\n`;
+            if (detalle.descripcion) respuesta += `📜 ${detalle.descripcion}\n\n`;
             if (detalle.precio && detalle.precio !== 'null') respuesta += `💰 Precio: ${detalle.precio}\n`;
             if (detalle.ubicacion && detalle.ubicacion !== 'null') respuesta += `📍 Lugar: ${detalle.ubicacion}\n`;
             if (detalle.enlace && detalle.enlace !== 'null') respuesta += `🔗 Más info: ${detalle.enlace}\n`;
 
-            respuesta += `\n👉 Escribe *otra búsqueda* o *menú* para continuar.`;
+            respuesta += `\n🔀 Escribe *otra búsqueda* o *menú* para continuar.`;
 
             resetUserState(numero);
             await sendMessage(respuesta);
@@ -135,9 +135,9 @@ app.post('/webhook', async (req, res) => {
           if (nuevos.length > 0) {
             cache.pagina++;
             const respuesta = nuevos.map((r, i) => `${inicio + i + 1}. ${r.nombre}`).join('\n\n');
-            await sendMessage(`📍 Más recomendaciones:\n\n${respuesta}\n\n👉 Escribe un número o *otra búsqueda* para continuar.`);
+            await sendMessage(`📍 Más recomendaciones:\n\n${respuesta}\n\n🔀 Escribe un número o *otra búsqueda* para continuar.`);
           } else {
-            await sendMessage('📭 Ya viste todos los resultados disponibles.');
+            await sendMessage('📜 Ya viste todos los resultados disponibles.');
           }
           return res.sendStatus(200);
         }
@@ -152,7 +152,7 @@ app.post('/webhook', async (req, res) => {
         if (sessionData[numero]?.context === 'diccionario') {
           const significado = await getMeaningFromSerpAPI(mensaje);
           if (significado) {
-            await sendMessage(`📚 *${mensaje}*:\n\n${significado}\n\n👉 Escribe *otra búsqueda* o *menú* para continuar.`);
+            await sendMessage(`📚 *${mensaje}*:\n\n${significado}\n\n🔀 Escribe *otra búsqueda* o *menú* para continuar.`);
           } else {
             await sendMessage(`😔 No encontré el significado de *${mensaje}*. Prueba otra palabra.`);
           }
@@ -178,11 +178,11 @@ app.post('/webhook', async (req, res) => {
           const primeros = lista.slice(0, 5);
           const texto = primeros.map((item, i) => `${i + 1}. ${item.nombre}`).join('\n\n');
 
-          await sendMessage(`🔎 Encontré estas opciones:\n\n${texto}\n\n👉 Escribe un número para ver más detalles o *ver más* para más opciones.`);
+          await sendMessage(`🔎 Encontré estas opciones:\n\n${texto}\n\n🔀 Escribe un número para ver más detalles o *ver más* para más opciones.`);
           return res.sendStatus(200);
         }
 
-        // 🧭 Default: ya hay búsqueda activa
+        // 🧱 Default: ya hay búsqueda activa
         await sendMessage('📌 Ya tienes una búsqueda activa. Escribe un número, *ver más* o *otra búsqueda* para continuar.');
         return res.sendStatus(200);
 

@@ -23,7 +23,7 @@ async def generar_y_guardar(data: TextoEntrada):
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
-                vector_str = f"({', '.join(map(str, embedding))})"
+                vector_str = f"[{', '.join(map(str, embedding))}]"  # ✅ Formato correcto para pgvector
                 cur.execute("""
                     INSERT INTO embeddings_index_384 (nombre, descripcion, fuente, referencia_id, embedding)
                     VALUES (%s, %s, %s, %s, %s::vector)
@@ -34,8 +34,11 @@ async def generar_y_guardar(data: TextoEntrada):
                     data.referencia_id,
                     vector_str
                 ))
+                conn.commit()  # ✅ Importante para guardar los cambios
         return {"ok": True, "descripcion": texto}
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {"ok": False, "error": str(e)}
 
 @app.get("/")
