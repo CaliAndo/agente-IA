@@ -10,18 +10,40 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
+const FASTAPI_URL = process.env.FASTAPI_URL;
+
+if (!FASTAPI_URL) throw new Error("🚨 FASTAPI_URL no está definida");
+
 const sessionData = {};
 const eventosCache = {};
+const inactividadTimers = {};
 
 const resetUserState = (numero) => {
   sessionData[numero] = { context: 'inicio' };
   delete eventosCache[numero];
+  clearTimeout(inactividadTimers[numero]?.warning);
+  clearTimeout(inactividadTimers[numero]?.close);
+  delete inactividadTimers[numero];
 };
 
 const normalizar = (txt) =>
-  txt.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  txt.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
-// 🌐 Verificación del webhook
+const iniciarInactividad = async (numero, sendMessage, tipo = 'completo') => {
+  clearTimeout(inactividadTimers[numero]?.warning);
+  clearTimeout(inactividadTimers[numero]?.close);
+
+  inactividadTimers[numero] = {
+    warning: tipo === 'completo' ? setTimeout(async () => {
+      await sendMessage('🔔 Sigo aquí si necesitas ayuda. ¿Quieres que te recomiende algo más?');
+    }, 60000) : null,
+    close: setTimeout(async () => {
+      await sendMessage('🕒 Parece que no hubo respuesta. ¡CaliAndo se despide por ahora! Vuelve cuando quieras 👋');
+      resetUserState(numero);
+    }, tipo === 'completo' ? 120000 : 60000)
+  };
+};
+
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -35,15 +57,11 @@ app.get('/webhook', (req, res) => {
   }
 });
 
-// 📩 Recepción de mensajes
 app.post('/webhook', async (req, res) => {
   const body = req.body;
 
   if (body.object) {
-    const entry = body.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const message = changes?.value?.messages?.[0];
-
+    const message = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
     if (message && message.type === 'text') {
       const numero = message.from;
       const rawMensaje = message.text.body;
@@ -66,38 +84,29 @@ app.post('/webhook', async (req, res) => {
         );
       };
 
+      clearTimeout(inactividadTimers[numero]?.warning);
+      clearTimeout(inactividadTimers[numero]?.close);
+
       try {
-        // 🔁 Reinicio de flujo
-        if (
-          mensaje.includes('menu') ||
-          mensaje.includes('volver') ||
-          mensaje.includes('otra busqueda')
-        ) {
+        if (["menu", "volver", "otra busqueda"].some(p => mensaje.includes(p))) {
           resetUserState(numero);
-          await sendMessage(`📋 Menú principal:\n\nPuedes escribirme algo como:\n• *eventos*\n• *cultura*\n• *tour*\n• *salsa*\n\nY te mostraré lo mejor de Cali 🇰🇴`);
+          await sendMessage(`📋 Menú principal:\n\nPuedes escribirme algo como:\n• *eventos*\n• *cultura*\n• *tour*\n• *salsa*\n\nY te mostraré lo mejor de Cali 🇨🇴`);
           return res.sendStatus(200);
         }
 
-        // 👋 Saludo
-        if (['hola', 'buenas', 'hey', 'holi'].includes(mensaje)) {
-          resetUserState(numero); // deja context: 'inicio'
-          await sendMessage(`👋 ¡Hola! Soy *CaliAndo* y estoy aquí para ayudarte a descubrir lo mejor de Cali 🇰🇴💃
-
-🔀 Escríbeme algo como *eventos*, *tour*, *cultura* o *diccionario* para comenzar.`);
+        if (["hola", "buenas", "hey", "holi"].includes(mensaje)) {
+          resetUserState(numero);
+          await sendMessage(`👋 ¡Hola! Soy *CaliAndo* y estoy aquí para ayudarte a descubrir lo mejor de Cali.\n\nCuéntame qué te gustaría hacer hoy: ¿te antoja algo cultural, quieres parchar con amigos o recorrer lugares nuevos?\n\nEstoy listo para mostrarte lo que esta ciudad sabrosa tiene para ti 🇨🇴💃`);
+          iniciarInactividad(numero, sendMessage);
           return res.sendStatus(200);
         }
 
-        // 🔍 Ver detalle por número
         if (!isNaN(mensaje) && eventosCache[numero]) {
           const index = parseInt(mensaje) - 1;
-          const lista = eventosCache[numero].lista;
+          const item = eventosCache[numero].lista[index];
 
-          if (lista[index]) {
-            const item = lista[index];
-            console.log('🔍 Buscando detalle:', item);
-
+          if (item) {
             const detalle = await getDetallePorFuente(item.fuente, item.referencia_id);
-            console.log('📄 Resultado detalle:', detalle);
 
             if (!detalle) {
               await sendMessage('❌ No encontré detalles para esa opción.');
@@ -111,7 +120,6 @@ app.post('/webhook', async (req, res) => {
             if (detalle.enlace && detalle.enlace !== 'null') respuesta += `🔗 Más info: ${detalle.enlace}\n`;
 
             respuesta += `\n🔀 Escribe *otra búsqueda* o *menú* para continuar.`;
-
             resetUserState(numero);
             await sendMessage(respuesta);
             return res.sendStatus(200);
@@ -121,7 +129,6 @@ app.post('/webhook', async (req, res) => {
           }
         }
 
-        // ➕ Ver más resultados
         if (mensaje.includes('ver mas')) {
           const cache = eventosCache[numero];
           if (!cache) {
@@ -139,13 +146,14 @@ app.post('/webhook', async (req, res) => {
           } else {
             await sendMessage('📜 Ya viste todos los resultados disponibles.');
           }
+          iniciarInactividad(numero, sendMessage);
           return res.sendStatus(200);
         }
 
-        // 📚 Diccionario
         if (mensaje.includes('diccionario')) {
           sessionData[numero] = { context: 'diccionario' };
           await sendMessage(`📚 Bienvenido al *diccionario caleño*. Escríbeme una palabra para explicártela.\n\nEj: *ñapa*, *enguayabado*, *borondo*`);
+          iniciarInactividad(numero, sendMessage);
           return res.sendStatus(200);
         }
 
@@ -156,19 +164,22 @@ app.post('/webhook', async (req, res) => {
           } else {
             await sendMessage(`😔 No encontré el significado de *${mensaje}*. Prueba otra palabra.`);
           }
+          iniciarInactividad(numero, sendMessage);
           return res.sendStatus(200);
         }
 
-        // 🧠 Nueva búsqueda (solo si no hay otra en curso)
         const contexto = sessionData[numero]?.context;
         if (!eventosCache[numero] && (contexto === 'inicio' || contexto === 'resultados' || !contexto)) {
-          console.log('🔎 Buscando coincidencias para:', mensaje);
-          const respuesta = await axios.post("http://localhost:8000/buscar-coincidencia", { texto: mensaje });
+          const respuesta = await axios.post(`${FASTAPI_URL}/buscar-coincidencia`, {
+            texto: mensaje,
+            fuente: "whatsapp",
+            nombre: "CaliAndo"
+          });
 
           const lista = respuesta.data.resultados || [];
-
           if (!respuesta.data.ok || lista.length === 0) {
             await sendMessage('😔 No encontré nada con esas palabras. Intenta con *eventos*, *tour*, *salsa*, etc.');
+            iniciarInactividad(numero, sendMessage, 'soloCierre');
             return res.sendStatus(200);
           }
 
@@ -177,18 +188,19 @@ app.post('/webhook', async (req, res) => {
 
           const primeros = lista.slice(0, 5);
           const texto = primeros.map((item, i) => `${i + 1}. ${item.nombre}`).join('\n\n');
-
           await sendMessage(`🔎 Encontré estas opciones:\n\n${texto}\n\n🔀 Escribe un número para ver más detalles o *ver más* para más opciones.`);
+          iniciarInactividad(numero, sendMessage);
           return res.sendStatus(200);
         }
 
-        // 🧱 Default: ya hay búsqueda activa
         await sendMessage('📌 Ya tienes una búsqueda activa. Escribe un número, *ver más* o *otra búsqueda* para continuar.');
+        iniciarInactividad(numero, sendMessage);
         return res.sendStatus(200);
 
       } catch (error) {
         console.error('💥 Error en el webhook:', error);
         await sendMessage('❌ Ocurrió un error. Intenta de nuevo más tarde.');
+        iniciarInactividad(numero, sendMessage, 'soloCierre');
         return res.sendStatus(500);
       }
     } else {
@@ -198,9 +210,6 @@ app.post('/webhook', async (req, res) => {
     return res.sendStatus(404);
   }
 });
-
-
-// 🌐 Iniciar servidor
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 CaliAndo Bot escuchando en http://0.0.0.0:${PORT}`);
