@@ -54,7 +54,6 @@ async def buscar(data: TextoEntrada):
         if not embedding:
             return {"ok": False, "error": "No se pudo generar el embedding."}
 
-        # ✅ Obtener múltiples resultados
         resultados = buscar_coincidencia(embedding, top_k=10)
 
         if not resultados:
@@ -76,5 +75,6 @@ async def buscar(data: TextoEntrada):
         }
 
     except Exception as e:
-        print("❌ Error interno:", e)
-        return {"ok": False, "error": str(e)}
+        import traceback
+        traceback.print_exc()  # 👈 imprime el error real en Railway Logs
+        return {"ok": False, "error": f"Error interno: {str(e)}"}
