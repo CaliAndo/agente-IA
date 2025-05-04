@@ -76,5 +76,5 @@ async def buscar(data: TextoEntrada):
 
     except Exception as e:
         import traceback
-        traceback.print_exc()  # 👈 imprime el error real en Railway Logs
+        traceback.print_exc()  # 📊 imprime el error real en Railway Logs
         return {"ok": False, "error": f"Error interno: {str(e)}"}
