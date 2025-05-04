@@ -21,7 +21,6 @@ const inactividadTimers = {}; // { [numero]: { warning, close } }
 const normalizar = txt =>
   txt.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 
-// Cancela timers para un número
 function clearInactivity(num) {
   if (!inactividadTimers[num]) return;
   clearTimeout(inactividadTimers[num].warning);
@@ -29,26 +28,29 @@ function clearInactivity(num) {
   delete inactividadTimers[num];
 }
 
-// Resetea estado completo tras cierre o despedida
 function resetUserState(num) {
   sessionData[num] = { context: 'inicio' };
   delete eventosCache[num];
   clearInactivity(num);
 }
 
-// Programa warning (1') y cierre (2')
+/**
+ * Inactividad:
+ * - warning a 1 minuto
+ * - close a 2 minutos
+ * tipo = 'completo' → warning + close
+ * tipo = 'soloCierre' → solo close
+ */
 function iniciarInactividad(num, sendMessage, tipo = 'completo') {
   clearInactivity(num);
-  const warningMs = 1 * 60 * 1000;   // 1 minuto
-  const closeMs   = 2 * 60 * 1000;   // 2 minutos
-
+  const warningMs = 1 * 60 * 1000;
+  const closeMs   = 2 * 60 * 1000;
   inactividadTimers[num] = {
     warning: tipo === 'completo'
       ? setTimeout(() => sendMessage(
           '🔔 Sigo aquí si necesitas algo más.'
         ).catch(console.error), warningMs)
       : null,
-
     close: setTimeout(() => {
       sendMessage(
         '🕒 No hubo respuesta. ¡CaliAndo se despide por ahora! Vuelve cuando quieras 👋'
@@ -87,48 +89,42 @@ app.post('/webhook', async (req, res) => {
   // reinicia timers
   clearInactivity(numero);
 
-  // chequeo de despedida
-  const despedidas = ['adios','adiós','hasta luego','chau','bye','nos vemos'];
-  if (despedidas.some(w => texto.includes(w))) {
-    await sendMessage(numero, '👋 ¡Hasta luego! Cuando quieras vuelves a escribir.');
-    resetUserState(numero);
-    return res.sendStatus(200);
-  }
-
   // contexto actual
   const ctx = sessionData[numero]?.context || 'inicio';
 
   try {
-    // Entrar al diccionario
+    // Comando para entrar al diccionario
     if (texto.includes('diccionario') && ctx !== 'diccionario') {
       sessionData[numero] = { context: 'diccionario' };
       await sendMessage(numero,
-        `📚 Entraste al *diccionario caleño*. Escríbeme una palabra para explicártela.\n` +
+        `📚 Entraste al *diccionario caleño*. Escríbeme una palabra para explicártela.\n\n` +
         `Para salir, responde *salir* o *menu*.`
       );
-      iniciarInactividad(numero, n => sendMessage(n,''), false);
+      iniciarInactividad(numero, n => sendMessage(n,''));
       return res.sendStatus(200);
     }
 
-    // Modo diccionario
+    // En modo diccionario
     if (ctx === 'diccionario') {
+      // comando para salir
       if (['salir','menu'].includes(texto)) {
         resetUserState(numero);
-        await sendMessage(numero, '✅ Saliste del diccionario. Ahora puedes escribir cualquier texto para buscar eventos.');
-        iniciarInactividad(numero, n => sendMessage(n,''), false);
+        await sendMessage(numero, '✅ Saliste del diccionario. Escribe cualquier texto para buscar eventos.');
+        iniciarInactividad(numero, n => sendMessage(n,''));
         return res.sendStatus(200);
       }
+      // buscar definición
       const significado = await getMeaningFromSerpAPI(texto);
       if (significado) {
         await sendMessage(numero, `📚 *${texto}*:\n\n${significado}`);
       } else {
         await sendMessage(numero, `😔 No encontré el significado de *${texto}*.`);
       }
-      iniciarInactividad(numero, n => sendMessage(n,''), true);
+      iniciarInactividad(numero, n => sendMessage(n,'')); // solo close
       return res.sendStatus(200);
     }
 
-    // Si el texto es número y hay cache → detalle
+    // Si el texto es un número y hay lista en cache → muestro detalle
     if (!isNaN(texto) && eventosCache[numero]) {
       const idx  = parseInt(texto,10)-1;
       const item = eventosCache[numero].lista[idx];
@@ -163,6 +159,7 @@ app.post('/webhook', async (req, res) => {
       iniciarInactividad(numero, n => sendMessage(n,''), true);
       return res.sendStatus(200);
     }
+    // guardo lista y muestro primeros 5
     eventosCache[numero] = { lista, pagina: 0 };
     const primerosTxt = lista.slice(0,5)
       .map((it,i)=>`${i+1}. ${it.nombre}`).join('\n\n');
