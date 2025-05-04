@@ -1,7 +1,13 @@
 from sentence_transformers import SentenceTransformer
 
-# Modelo que genera vectores de 384 dimensiones
-model = SentenceTransformer('all-MiniLM-L6-v2')
+_model = None  # cache del modelo
+
+def get_model():
+    global _model
+    if _model is None:
+        _model = SentenceTransformer('all-MiniLM-L6-v2')
+    return _model
 
 def generar_embedding(texto: str) -> list:
+    model = get_model()
     return model.encode(texto).tolist()
