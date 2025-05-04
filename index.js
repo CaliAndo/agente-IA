@@ -109,7 +109,7 @@ app.post('/webhook', async (req, res) => {
     if (['menu','volver','otra busqueda'].some(w => mensaje.includes(w))) {
       resetUserState(numero);
       await sendMessage(
-        `📋 Menú principal:\n\nPuedes escribirme algo como:\n• *eventos*\n• *cultura*\n• *tour*\n• *salsa*\n\nY te mostraré lo mejor de Cali 🇨🇴`
+        `📋 Menú principal:\n\nPuedes escribirme algo como:\n• *Eventos*\n• *Cultura*\n• *Tour*\n• *Salsa*\n\nY te mostraré lo mejor de Cali 🇨🇴`
       );
       iniciarInactividad(numero, sendMessage);
       return res.sendStatus(200);
@@ -155,7 +155,7 @@ app.post('/webhook', async (req, res) => {
     if (mensaje.includes('ver mas')) {
       const cache = eventosCache[numero];
       if (!cache) {
-        await sendMessage('ℹ️ No hay resultados activos. Escribe algo como *tour* o *eventos*.');
+        await sendMessage('ℹ️ No hay resultados activos. Escribe algo como *Tour* o *Eventos*.');
         iniciarInactividad(numero, sendMessage);
         return res.sendStatus(200);
       }
@@ -163,7 +163,7 @@ app.post('/webhook', async (req, res) => {
       const next  = cache.lista.slice(start, start + 5);
       if (next.length) {
         const listText = next.map((r,i)=>`${start+i+1}. ${r.nombre}`).join('\n\n');
-        await sendMessage(`📍 Más recomendaciones:\n\n${listText}\n\n🔀 Escribe un número o *otra búsqueda* para continuar.`);
+        await sendMessage(`📍 Más recomendaciones:\n\n${listText}\n\n🔀 Escribe un número o *Otra búsqueda* para continuar.`);
       } else {
         await sendMessage('📜 Ya viste todos los resultados disponibles.');
       }
@@ -199,7 +199,7 @@ app.post('/webhook', async (req, res) => {
       });
       const lista = resp.data.resultados || [];
       if (!resp.data.ok || lista.length === 0) {
-        await sendMessage('😔 No encontré nada con esas palabras. Intenta con *eventos*, *tour*, *salsa*, etc.');
+        await sendMessage('😔 No encontré nada con esas palabras. Intenta con *Eventos*, *Tour* etc.');
         iniciarInactividad(numero, sendMessage, 'soloCierre');
         return res.sendStatus(200);
       }
