@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
-
+//SUBIR Y SE ARREGLA
+const axios = require('axios');
 const { getDetallePorFuente } = require('./services/db/getDetalle');
 const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
 
