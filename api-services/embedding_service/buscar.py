@@ -2,7 +2,7 @@ from .db import get_connection
 
 def buscar_coincidencia(embedding, top_k=1):
     try:
-        print("🔍 Iniciando búsqueda...")
+        print("🔍 Iniciando búsqueda semántica...")
         vector_str = f"[{', '.join(map(str, embedding))}]"
         print("➞ Vector:", vector_str[:80] + "...")
 
@@ -10,13 +10,15 @@ def buscar_coincidencia(embedding, top_k=1):
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT nombre, descripcion, fuente, referencia_id
-                    FROM embeddings_index_384
-                    ORDER BY embedding <#> %s::vector
-                    LIMIT %s
+                      FROM embeddings_index_384
+                  ORDER BY embedding <-> %s::vector
+                     LIMIT %s
                 """, (vector_str, top_k))
                 resultados = cur.fetchall()
-                print("✅ Resultados:", resultados)
-                return resultados
+
+        print("✅ Resultados encontrados:", resultados)
+        return resultados
+
     except Exception as e:
         import traceback
         print("❌ Error en buscar_coincidencia:")
