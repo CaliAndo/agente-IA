@@ -16,8 +16,8 @@ async function getAllEventos() {
 
     for (const evento of eventosBase.rows) {
       const detalles = await pool.query(`
-        SELECT 'sheets_detalles' AS origen, descripcion, pagina_web AS fuente, NULL AS precio
-        FROM sheets_detalles WHERE evento_id = $1
+              SELECT 
+          'sheets_detalles' AS origen,tipo_de_lugar AS descripcion,pagina_web AS fuente, NULL AS precio FROM sheets_detalles WHERE evento_id = $1
 
         UNION ALL
 

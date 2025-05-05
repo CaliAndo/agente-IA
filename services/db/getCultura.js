@@ -10,7 +10,7 @@ const pool = new Pool({
 async function getAllCultura() {
   try {
     const museos = await pool.query(`
-      SELECT id, title AS nombre, fuente AS descripcion, 'museos' AS fuente 
+      SELECT id, title AS nombre, fuente AS descripcion, link AS fuente 
       FROM museos
     `);
     
