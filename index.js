@@ -13,10 +13,11 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const FASTAPI_URL = process.env.FASTAPI_URL;
 if (!FASTAPI_URL) throw new Error("🚨 FASTAPI_URL no está definida");
 
-const sessionData       = {};  // contextos por número
-const eventosCache      = {};  // resultados de búsqueda por número
+const sessionData      = {};  // contextos por número
+const eventosCache     = {};  // resultados de búsqueda por número
 const inactividadTimers = {}; // timers de warning y cierre por número
 
+// Cancela ambos timers para un número
 function clearInactivity(numero) {
   if (!inactividadTimers[numero]) return;
   clearTimeout(inactividadTimers[numero].warning);
@@ -24,19 +25,29 @@ function clearInactivity(numero) {
   delete inactividadTimers[numero];
 }
 
+// Resetea estado completo tras cierre
 function resetUserState(numero) {
   sessionData[numero] = { context: 'inicio' };
   delete eventosCache[numero];
   clearInactivity(numero);
 }
 
+// Normaliza texto (quita tildes, lower case, trim)
 const normalizar = txt =>
   txt.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 
+/**
+ * Programa los timers de inactividad:
+ * - warning a 1 minuto (60 000 ms)
+ * - cierre a 2 minutos (120 000 ms)
+ * tipo = 'completo'  → warning + cierre
+ * tipo = 'soloCierre' → solo cierre a 2'
+ */
 function iniciarInactividad(numero, sendMessage, tipo = 'completo') {
   clearInactivity(numero);
-  const warningDelay = 60_000;   // 1 minuto
-  const closeDelay   = 120_000;  // 2 minutos
+
+  const warningDelay = 1 * 60 * 1000;   // 1 minuto
+  const closeDelay   = 2 * 60 * 1000;   // 2 minutos
 
   inactividadTimers[numero] = {
     warning: tipo === 'completo'
@@ -56,6 +67,7 @@ function iniciarInactividad(numero, sendMessage, tipo = 'completo') {
   };
 }
 
+// Verificación del webhook
 app.get('/webhook', (req, res) => {
   const mode      = req.query['hub.mode'];
   const token     = req.query['hub.verify_token'];
@@ -69,6 +81,7 @@ app.get('/webhook', (req, res) => {
   }
 });
 
+// Recepción de mensajes
 app.post('/webhook', async (req, res) => {
   const message = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
   if (!message || message.type !== 'text') {
@@ -79,6 +92,7 @@ app.post('/webhook', async (req, res) => {
   const rawMensaje = message.text.body;
   const mensaje    = normalizar(rawMensaje);
 
+  // función para enviar mensajes por WhatsApp
   const sendMessage = async text => {
     await axios.post(
       `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
@@ -87,10 +101,11 @@ app.post('/webhook', async (req, res) => {
     );
   };
 
+  // al recibir cualquier mensaje, cancelamos timers previos
   clearInactivity(numero);
 
   try {
-    // Menú principal
+    // Comandos de menú
     if (['menu','volver','otra busqueda'].some(w => mensaje.includes(w))) {
       resetUserState(numero);
       await sendMessage(
@@ -112,33 +127,25 @@ app.post('/webhook', async (req, res) => {
 
     // Detalle por número
     if (!isNaN(mensaje) && eventosCache[numero]) {
-      const idx  = parseInt(mensaje, 10) - 1;
+      const idx  = parseInt(mensaje,10) - 1;
       const item = eventosCache[numero].lista[idx];
       if (!item) {
         await sendMessage('❌ Opción inválida. Escribe un número de la lista.');
         iniciarInactividad(numero, sendMessage);
         return res.sendStatus(200);
       }
-
       const detalle = await getDetallePorFuente(item.fuente, item.referencia_id);
       if (!detalle) {
         await sendMessage('❌ No encontré detalles para esa opción.');
         iniciarInactividad(numero, sendMessage);
         return res.sendStatus(200);
       }
-
       let resp = `📚 *${detalle.nombre}*\n\n`;
-      if (detalle.descripcion)        resp += `📜 ${detalle.descripcion}\n\n`;
-      if (detalle.ubicacion)          resp += `📍 Ubicación: ${detalle.ubicacion}\n`;
-      if (detalle.tipo_de_lugar)      resp += `🏷️ Tipo de lugar: ${detalle.tipo_de_lugar}\n`;
-      if (detalle.redes_sociales)     resp += `🔗 Redes: ${detalle.redes_sociales}\n`;
-      if (detalle.pagina_web)         resp += `🌐 Web: ${detalle.pagina_web}\n`;
-      if (detalle.zona)               resp += `📌 Zona: ${detalle.zona}\n`;
-      if (detalle.ingreso_permitido)  resp += `🚪 Ingreso permitido: ${detalle.ingreso_permitido}\n`;
-      if (detalle.precio)             resp += `💰 Precio: ${detalle.precio}\n`;
-      if (detalle.enlace)             resp += `🔗 Más info: ${detalle.enlace}\n`;
+      if (detalle.descripcion) resp += `📜 ${detalle.descripcion}\n\n`;
+      if (detalle.precio && detalle.precio!=='null') resp += `💰 Precio: ${detalle.precio}\n`;
+      if (detalle.ubicacion && detalle.ubicacion!=='null') resp += `📍 Lugar: ${detalle.ubicacion}\n`;
+      if (detalle.enlace && detalle.enlace!=='null') resp += `🔗 Más info: ${detalle.enlace}\n`;
       resp += `\n🔀 Escribe *otra búsqueda* o *menú* para continuar.`;
-
       resetUserState(numero);
       await sendMessage(resp);
       return res.sendStatus(200);
@@ -155,7 +162,7 @@ app.post('/webhook', async (req, res) => {
       const start = (++cache.pagina) * 5;
       const next  = cache.lista.slice(start, start + 5);
       if (next.length) {
-        const listText = next.map((r, i) => `${start + i + 1}. ${r.nombre}`).join('\n\n');
+        const listText = next.map((r,i)=>`${start+i+1}. ${r.nombre}`).join('\n\n');
         await sendMessage(`📍 Más recomendaciones:\n\n${listText}\n\n🔀 Escribe un número o *Otra búsqueda* para continuar.`);
       } else {
         await sendMessage('📜 Ya viste todos los resultados disponibles.');
@@ -184,7 +191,7 @@ app.post('/webhook', async (req, res) => {
 
     // Nueva búsqueda
     const ctx = sessionData[numero]?.context;
-    if (!eventosCache[numero] && (!ctx || ctx === 'inicio' || ctx === 'resultados')) {
+    if (!eventosCache[numero] && (!ctx || ctx==='inicio' || ctx==='resultados')) {
       const resp = await axios.post(`${FASTAPI_URL}/buscar-coincidencia`, {
         texto: mensaje,
         fuente: 'whatsapp',
@@ -198,7 +205,7 @@ app.post('/webhook', async (req, res) => {
       }
       eventosCache[numero] = { lista, pagina: 0 };
       sessionData[numero] = { context: 'resultados' };
-      const primeros = lista.slice(0, 5).map((i, idx) => `${idx + 1}. ${i.nombre}`).join('\n\n');
+      const primeros = lista.slice(0,5).map((i,idx)=>`${idx+1}. ${i.nombre}`).join('\n\n');
       await sendMessage(`🔎 Encontré estas opciones:\n\n${primeros}\n\n🔀 Escribe un número para ver más detalles o *ver más*.`);
       iniciarInactividad(numero, sendMessage);
       return res.sendStatus(200);
