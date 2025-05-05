@@ -7,33 +7,21 @@ const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
 const app = express();
 app.use(express.json());
 
-// Health-check para Railway
-app.get('/', (req, res) => {
-  res.status(200).send('🟢 CaliAndo Bot OK');
-});
-
-const PORT              = process.env.PORT || 3000;
-const VERIFY_TOKEN      = process.env.WHATSAPP_VERIFY_TOKEN;
-const WHATSAPP_TOKEN    = process.env.WHATSAPP_TOKEN;
-const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
-const FASTAPI_URL       = process.env.FASTAPI_URL;
-
-if (!WHATSAPP_TOKEN)    console.warn('⚠️ WHATSAPP_TOKEN no está definido');
-if (!VERIFY_TOKEN)      console.warn('⚠️ WHATSAPP_VERIFY_TOKEN no está definido');
-if (!WHATSAPP_PHONE_ID) console.warn('⚠️ WHATSAPP_PHONE_NUMBER_ID no está definido');
-if (!FASTAPI_URL)       console.error('🚨 FASTAPI_URL no está definida');
+const PORT = process.env.PORT || 3000;
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
+const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
+const FASTAPI_URL = process.env.FASTAPI_URL;
+if (!FASTAPI_URL) throw new Error("🚨 FASTAPI_URL no está definida");
 
 const sessionData       = {};  // contextos por número
 const eventosCache      = {};  // resultados de búsqueda por número
 const inactividadTimers = {};  // timers de warning y cierre por número
 
 function clearInactivity(numero) {
-  const t = inactividadTimers[numero];
-  if (t) {
-    clearTimeout(t.warning);
-    clearTimeout(t.close);
-    delete inactividadTimers[numero];
-  }
+  if (!inactividadTimers[numero]) return;
+  clearTimeout(inactividadTimers[numero].warning);
+  clearTimeout(inactividadTimers[numero].close);
+  delete inactividadTimers[numero];
 }
 
 function resetUserState(numero) {
@@ -45,19 +33,26 @@ function resetUserState(numero) {
 const normalizar = txt =>
   txt.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 
+/**
+ * Inicia timers de inactividad:
+ * - warning a 1'
+ * - cierre a 2'
+ * tipo = 'completo'  → warning + cierre
+ * tipo = 'soloCierre' → solo cierre
+ */
 function iniciarInactividad(numero, sendMessage, tipo = 'completo') {
   clearInactivity(numero);
-  const warningDelay = 60_000;   // 1 min
-  const closeDelay   = 120_000;  // 2 min
 
   inactividadTimers[numero] = {
     warning: tipo === 'completo'
-      ? setTimeout(() => sendMessage('🔔 Sigo aquí si necesitas ayuda. ¿Quieres que te recomiende algo más?'), warningDelay)
+      ? setTimeout(async () => {
+          await sendMessage('🔔 Sigo aquí si necesitas ayuda. ¿Quieres que te recomiende algo más?');
+        }, 60_000)
       : null,
-    close: setTimeout(() => {
-      sendMessage('🕒 Parece que no hubo respuesta. ¡CaliAndo se despide por ahora! Vuelve cuando quieras 👋');
+    close: setTimeout(async () => {
+      await sendMessage('🕒 Parece que no hubo respuesta. ¡CaliAndo se despide por ahora! Vuelve cuando quieras 👋');
       resetUserState(numero);
-    }, closeDelay)
+    }, tipo === 'completo' ? 120_000 : 60_000)
   };
 }
 
@@ -76,50 +71,52 @@ app.get('/webhook', (req, res) => {
 
 // Recepción de mensajes
 app.post('/webhook', async (req, res) => {
+  const message = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+  if (!message || message.type !== 'text') {
+    return res.sendStatus(200);
+  }
+
+  const numero     = message.from;
+  const rawMensaje = message.text.body;
+  const mensaje    = normalizar(rawMensaje);
+
+  const sendMessage = async text => {
+    await axios.post(
+      `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
+      { messaging_product: 'whatsapp', to: numero, text: { body: text } },
+      { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' } }
+    );
+  };
+
+  clearInactivity(numero);
+
   try {
-    const message = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-    if (!message || message.type !== 'text') {
-      return res.sendStatus(200);
-    }
-
-    const numero     = message.from;
-    const rawMensaje = message.text.body;
-    const mensaje    = normalizar(rawMensaje);
-
-    const sendMessage = async text => {
-      await axios.post(
-        `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`,
-        { messaging_product: 'whatsapp', to: numero, text: { body: text } },
-        { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` } }
-      );
-    };
-
-    clearInactivity(numero);
-
-    // Menú principal
+    // — MENÚ PRINCIPAL —
     if (['menu','volver','otra busqueda'].some(w => mensaje.includes(w))) {
       resetUserState(numero);
       await sendMessage(
-        `📋 Menú principal:\n• Eventos\n• Cultura\n• Tour\n• Salsa\n\nEscribe tu opción.`
+        `📋 Menú principal:\n• *Eventos*\n• *Cultura*\n• *Tour*\n• *Salsa*\n\nEscribe tu opción.`
       );
       iniciarInactividad(numero, sendMessage);
       return res.sendStatus(200);
     }
 
-    // Saludo inicial
+    // — SALUDO INICIAL —
     if (['hola','buenas','hey','holi'].includes(mensaje)) {
       resetUserState(numero);
-      await sendMessage(`👋 ¡Hola! Soy *CaliAndo*. ¿Qué quieres descubrir hoy en Cali?`);
+      await sendMessage(
+        `👋 ¡Hola! Soy *CaliAndo* y estoy aquí para mostrarte lo mejor de Cali 🇨🇴`
+      );
       iniciarInactividad(numero, sendMessage);
       return res.sendStatus(200);
     }
 
-    // Detalle por número
+    // — DETALLE POR NÚMERO —
     if (!isNaN(mensaje) && eventosCache[numero]) {
       const idx  = parseInt(mensaje, 10) - 1;
       const item = eventosCache[numero].lista[idx];
       if (!item) {
-        await sendMessage('❌ Opción inválida. Escribe un número válido.');
+        await sendMessage('❌ Opción inválida. Escribe un número de la lista.');
         iniciarInactividad(numero, sendMessage);
         return res.sendStatus(200);
       }
@@ -131,17 +128,16 @@ app.post('/webhook', async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // Construcción de la respuesta con todas las columnas
       let resp = `📚 *${detalle.nombre}*\n\n`;
-      if (detalle.descripcion)        resp += `📜 ${detalle.descripcion}\n\n`;
-      if (detalle.ubicacion)          resp += `📍 Ubicación: ${detalle.ubicacion}\n`;
-      if (detalle.tipo_de_lugar)      resp += `🏷️ Tipo: ${detalle.tipo_de_lugar}\n`;
-      if (detalle.redes_sociales)     resp += `🔗 Redes: ${detalle.redes_sociales}\n`;
-      if (detalle.pagina_web)         resp += `🌐 Web: ${detalle.pagina_web}\n`;
-      if (detalle.zona)               resp += `📌 Zona: ${detalle.zona}\n`;
-      if (detalle.ingreso_permitido)  resp += `🚪 Ingreso permitido: ${detalle.ingreso_permitido}\n`;
-      if (detalle.precio)             resp += `💰 Precio: ${detalle.precio}\n`;
-      if (detalle.enlace)             resp += `🔗 Más info: ${detalle.enlace}\n`;
+      if (detalle.descripcion)       resp += `📜 ${detalle.descripcion}\n\n`;
+      if (detalle.ubicacion)         resp += `📍 Ubicación: ${detalle.ubicacion}\n`;
+      if (detalle.tipo_de_lugar)     resp += `🏷️ Tipo: ${detalle.tipo_de_lugar}\n`;
+      if (detalle.redes_sociales)    resp += `🔗 Redes: ${detalle.redes_sociales}\n`;
+      if (detalle.pagina_web)        resp += `🌐 Web: ${detalle.pagina_web}\n`;
+      if (detalle.zona)              resp += `📌 Zona: ${detalle.zona}\n`;
+      if (detalle.ingreso_permitido) resp += `🚪 Ingreso: ${detalle.ingreso_permitido}\n`;
+      if (detalle.precio)            resp += `💰 Precio: ${detalle.precio}\n`;
+      if (detalle.enlace)            resp += `🔗 Más info: ${detalle.enlace}\n`;
       resp += `\n🔀 Escribe *otra búsqueda* o *menú* para continuar.`;
 
       resetUserState(numero);
@@ -149,84 +145,79 @@ app.post('/webhook', async (req, res) => {
       return res.sendStatus(200);
     }
 
-    // Ver más resultados
+    // — VER MÁS RESULTADOS —
     if (mensaje.includes('ver mas')) {
       const cache = eventosCache[numero];
       if (!cache) {
-        await sendMessage('ℹ️ No hay búsqueda activa. Escribe “tour” o “eventos”.');
+        await sendMessage('ℹ️ No hay búsqueda activa. Escribe *tour* o *eventos*.');
         iniciarInactividad(numero, sendMessage);
         return res.sendStatus(200);
       }
       const start = (++cache.pagina) * 5;
       const next  = cache.lista.slice(start, start + 5);
       if (next.length) {
-        const text = next.map((r,i) => `${start + i + 1}. ${r.nombre}`).join('\n\n');
-        await sendMessage(`📍 Más:\n\n${text}\n\n🔀 Número o *otra búsqueda*.`);
+        const listText = next.map((r, i) => `${start + i + 1}. ${r.nombre}`).join('\n\n');
+        await sendMessage(`📍 Más recomendaciones:\n\n${listText}\n\n🔀 Número o *otra búsqueda*.`);
       } else {
-        await sendMessage('📜 Ya no quedan más resultados.');
+        await sendMessage('📜 Ya viste todos los resultados disponibles.');
       }
       iniciarInactividad(numero, sendMessage);
       return res.sendStatus(200);
     }
 
-    // Diccionario
+    // — DICCIONARIO —
     if (mensaje.includes('diccionario')) {
       sessionData[numero] = { context: 'diccionario' };
-      await sendMessage('📚 Diccionario caleño: escribe la palabra.');
+      await sendMessage('📚 Bienvenido al *diccionario caleño*. Escribe una palabra.');
       iniciarInactividad(numero, sendMessage);
       return res.sendStatus(200);
     }
     if (sessionData[numero]?.context === 'diccionario') {
-      const sign = await getMeaningFromSerpAPI(mensaje);
+      const significado = await getMeaningFromSerpAPI(mensaje);
       await sendMessage(
-        sign
-          ? `📚 *${mensaje}*: ${sign}`
-          : `😔 No encontré significado de “${mensaje}”.`
+        significado
+          ? `📚 *${mensaje}*: ${significado}`
+          : `😔 No encontré el significado de *${mensaje}*.`
       );
       iniciarInactividad(numero, sendMessage);
       return res.sendStatus(200);
     }
 
-    // Nueva búsqueda con FastAPI
+    // — NUEVA BÚSQUEDA EMBEDDINGS —
     const ctx = sessionData[numero]?.context;
     if (!eventosCache[numero] && (!ctx || ctx === 'inicio' || ctx === 'resultados')) {
-      if (!FASTAPI_URL) {
-        await sendMessage('❌ Error interno: FASTAPI_URL no configurada.');
-        return res.sendStatus(500);
-      }
       const { data } = await axios.post(`${FASTAPI_URL}/buscar-coincidencia`, {
         texto: mensaje,
         fuente: 'whatsapp',
         nombre: 'CaliAndo'
       });
-      if (!data.ok || !data.resultados.length) {
-        await sendMessage('😔 No encontré nada. Prueba con “eventos” o “tour”.');
+      const lista = data.resultados || [];
+      if (!data.ok || lista.length === 0) {
+        await sendMessage('😔 No encontré nada. Prueba con *eventos*, *tour*.');
         iniciarInactividad(numero, sendMessage, 'soloCierre');
         return res.sendStatus(200);
       }
-      eventosCache[numero] = { lista: data.resultados, pagina: 0 };
+      eventosCache[numero] = { lista, pagina: 0 };
       sessionData[numero]   = { context: 'resultados' };
-      const primeros = data.resultados.slice(0,5)
-        .map((it,i) => `${i+1}. ${it.nombre}`)
-        .join('\n\n');
+      const primeros = lista.slice(0, 5).map((it, i) => `${i + 1}. ${it.nombre}`).join('\n\n');
       await sendMessage(`🔎 Opciones:\n\n${primeros}\n\n🔀 Número o *ver mas*.`);
       iniciarInactividad(numero, sendMessage);
       return res.sendStatus(200);
     }
 
-    // Flujo activo
+    // — FLUJO ACTIVO —
     await sendMessage('📌 Ya tienes búsqueda activa. Número, *ver mas* o *otra búsqueda*.');
     iniciarInactividad(numero, sendMessage);
     return res.sendStatus(200);
 
   } catch (err) {
-    console.error('💥 Error en /webhook:', err);
+    console.error('💥 Error en el webhook:', err);
+    await sendMessage('❌ Ocurrió un error. Intenta de nuevo más tarde.');
+    iniciarInactividad(req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.from, sendMessage, 'soloCierre');
     return res.sendStatus(500);
   }
 });
 
-// Arranca el servidor
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 CaliAndo Bot escuchando en http://0.0.0.0:${PORT}`);
-  console.log(`🔗 Conectado a FASTAPI_URL → ${FASTAPI_URL}`);
 });
