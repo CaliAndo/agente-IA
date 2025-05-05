@@ -1,130 +1,125 @@
-// scripts/importarDesdeSheetsConEmbeddings.js
-
 require('dotenv').config();
-const axios    = require('axios');
+const axios = require('axios');
 const { Pool } = require('pg');
+const cron = require('node-cron');
 const { generarEmbedding } = require('../services/ai/embeddingService');
 
-// 1) Conexión a Supabase (PostgreSQL + pgvector + SSL)
+// Conexión a Supabase (PostgreSQL + pgvector + SSL)
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL + '?sslmode=require',
+  connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
 });
 
-// 2) Auxiliar: obtener o crear evento y devolver su ID
-async function obtenerOCrearEvento(nombre, descripcion) {
-  // 2.1) Intentar recuperar
-  const { rows: existentes } = await pool.query(
-    `SELECT id FROM eventos WHERE nombre = $1`,
+// Configuración de Google Sheets
+const sheetId = '1MMUh5RjXAtRH9EJiPHVhOGxGGEEqhbEI10F5LciBMMg';
+const hoja = 'Hoja1';
+const url = `https://opensheet.elk.sh/${sheetId}/${hoja}`;
+
+// Auxiliar: busca ID de evento por nombre
+async function getEventoIdByTitulo(nombre) {
+  const res = await pool.query(
+    'SELECT id FROM eventos WHERE nombre = $1',
     [nombre]
   );
-  if (existentes.length) return existentes[0].id;
-
-  // 2.2) Generar embedding
-  const textoEmbedding = `${nombre}. ${descripcion}`;
-  const embeddingArray = await generarEmbedding(textoEmbedding);
-  const vectorStr = `[${embeddingArray.join(',')}]`;
-
-  // 2.3) Insertar en 'eventos'
-  const { rows } = await pool.query(
-    `
-    INSERT INTO eventos (nombre, descripcion, embedding)
-    VALUES ($1, $2, $3::vector)
-    RETURNING id
-    `,
-    [nombre, descripcion, vectorStr]
-  );
-  return rows[0].id;
+  return res.rows[0]?.id || null;
 }
 
-// 3) Función principal: descarga de Sheets e inserción en BD + índice de embeddings
-async function insertarDesdeSheetsYIndex() {
-  try {
-    console.log('📥 Descargando datos de Google Sheets…');
-    const sheetId = '1MMUh5RjXAtRH9EJiPHVhOGxGGEEqhbEI10F5LciBMMg';
-    const url     = `https://opensheet.elk.sh/${sheetId}/Hoja1`;
-    const { data } = await axios.get(url);
-    if (!Array.isArray(data)) throw new Error('Formato de datos inválido');
+// Función principal: descarga, inserta eventos, detalles y embeddings
+async function procesarSheets() {
+  console.log('📥 Descargando datos desde Google Sheets...');
+  const { data } = await axios.get(url);
+  if (!Array.isArray(data)) {
+    throw new Error('Formato inválido al descargar Google Sheets');
+  }
 
-    let nuevos = 0;
-    for (const item of data) {
-      const nombre      = item['Nombre del sitio'] || '';
-      const descripcion = item['¿Qué puedes encontrar?'] || '';
-      const ubicacion   = item.Ubicacion || '';
-      const tipo_de_lugar     = item['Tipo de lugar'] || '';
-      const redes_sociales    = item['Redes sociales'] || '';
-      const pagina_web        = item['Página Web'] || '';
-      const zona              = item.Zona || '';
-      const ingreso_permitido = item['Ingreso permitido a'] || '';
+  let procesados = 0;
+  for (const item of data) {
+    const nombre = item['Nombre del sitio']?.trim();
+    if (!nombre) continue;
+    const descripcion       = item['¿Qué puedes encontrar?']?.trim() || '';
+    const ubicacion         = item.Ubicacion?.trim() || '';
+    const tipo_de_lugar     = item['Tipo de lugar']?.trim() || '';
+    const redes_sociales    = item['Redes sociales']?.trim() || '';
+    const pagina_web        = item['Página Web']?.trim() || '';
+    const zona              = item.Zona?.trim() || '';
+    const ingreso_permitido = item['Ingreso permitido a']?.trim() || '';
 
-      if (!nombre) continue;
-
-      // 3.1) Obtener o crear evento
-      const eventoId = await obtenerOCrearEvento(nombre, descripcion);
-
-      // 3.2) Insertar en sheets_detalles si no existe
-      await pool.query(
-        `
-        INSERT INTO sheets_detalles
-          (evento_id, nombre, descripcion, ubicacion, tipo_de_lugar,
-           redes_sociales, pagina_web, zona, ingreso_permitido)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-        ON CONFLICT (evento_id, nombre) DO NOTHING
-        `,
-        [
-          eventoId,
-          nombre,
-          descripcion,
-          ubicacion,
-          tipo_de_lugar,
-          redes_sociales,
-          pagina_web,
-          zona,
-          ingreso_permitido
-        ]
-      );
-
-      // 3.3) Indexar embedding en embeddings_index_384
-      // Solo si no existe ya una entrada para este evento
-      const { rows: idxExists } = await pool.query(
-        `
-        SELECT 1
-          FROM embeddings_index_384
-         WHERE referencia_id = $1
-           AND fuente = 'sheets'
-        `,
-        [eventoId]
-      );
-      if (idxExists.length === 0) {
-        const textoEmbedding = `${nombre}. ${descripcion}`;
-        const embeddingArray = await generarEmbedding(textoEmbedding);
-        const vectorStr = `[${embeddingArray.join(',')}]`;
-
-        await pool.query(
-          `
-          INSERT INTO embeddings_index_384
-            (nombre, descripcion, fuente, referencia_id, embedding)
-          VALUES ($1, $2, $3, $4, $5::vector)
-          `,
-          [nombre, descripcion, 'sheets', eventoId, vectorStr]
-        );
-        nuevos++;
+    // Obtener o crear evento
+    let eventoId = await getEventoIdByTitulo(nombre);
+    let embeddingArray;
+    if (!eventoId) {
+      console.log(`➕ Insertando evento: ${nombre}`);
+      // Generar embedding para el evento
+      embeddingArray = await generarEmbedding(`${nombre}. ${descripcion}`);
+      if (!Array.isArray(embeddingArray)) {
+        console.warn(`⚠️ Embedding inválido para: ${nombre}`);
+        continue;
       }
+      const vecStr = `[${embeddingArray.join(',')}]`;
+
+      // Insertar en eventos con embedding
+      const insertEvento = await pool.query(
+        `INSERT INTO eventos (nombre, descripcion, embedding)
+         VALUES ($1, $2, $3::vector)
+         RETURNING id`,
+        [nombre, descripcion, vecStr]
+      );
+      eventoId = insertEvento.rows[0].id;
+      console.log(`🆔 Evento creado con ID: ${eventoId}`);
     }
 
-    console.log(`✅ ${nuevos} nuevo(s) embedding(s) insertado(s) desde Sheets.`);
-  } catch (err) {
-    console.error('❌ Error al procesar Sheets:', err);
-    process.exit(1);
-  } finally {
-    await pool.end();
+    // Insertar detalles en sheets_detalles
+    await pool.query(
+      `INSERT INTO sheets_detalles
+         (evento_id, nombre, descripcion, ubicacion, tipo_de_lugar,
+          redes_sociales, pagina_web, zona, ingreso_permitido)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (evento_id, nombre) DO NOTHING`,
+      [
+        eventoId,
+        nombre,
+        descripcion,
+        ubicacion,
+        tipo_de_lugar,
+        redes_sociales,
+        pagina_web,
+        zona,
+        ingreso_permitido
+      ]
+    );
+
+    // Indexar embedding en embeddings_index_384 (si hay nuevo embedding o no existe index)
+    if (!embeddingArray) {
+      embeddingArray = await generarEmbedding(`${nombre}. ${descripcion}`);
+    }
+    const idxRes = await pool.query(
+      `SELECT 1 FROM embeddings_index_384
+       WHERE referencia_id = $1 AND fuente = 'sheets'`,
+      [eventoId]
+    );
+    if (idxRes.rowCount === 0 && Array.isArray(embeddingArray)) {
+      const vecStr = `[${embeddingArray.join(',')}]`;
+      await pool.query(
+        `INSERT INTO embeddings_index_384
+           (nombre, descripcion, fuente, referencia_id, embedding)
+         VALUES ($1, $2, 'sheets', $3, $4::vector)`,
+        [nombre, descripcion, eventoId, vecStr]
+      );
+    }
+
+    procesados++;
   }
+  console.log(`✅ ${procesados} fila(s) procesada(s) desde Sheets.`);
 }
 
-// Ejecutar inmediatamente al invocar este script
-(async () => {
-  console.log('🔄 Iniciando importación e indexación de embeddings desde Sheets…');
-  await insertarDesdeSheetsYIndex();
-  console.log('🏁 Proceso finalizado.');
-  process.exit(0);
-})();
+// Programar la tarea: cada 24h a medianoche UTC
+cron.schedule('0 0 * * *', async () => {
+  console.log('🕒 Tarea programada: importación de Sheets iniciada.');
+  try {
+    await procesarSheets();
+  } catch (err) {
+    console.error('❌ Error en tarea programada:', err);
+  }
+});
+
+console.log('✅ Cron inicializado: Sheets se procesará cada 24 horas.');

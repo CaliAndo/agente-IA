@@ -10,62 +10,83 @@ async function getDetallePorFuente(origen, id) {
   if (!origen || !id) return null;
 
   try {
-    // 1. Obtener datos base del evento
-    const eventoResult = await pool.query(
+    // 1. Datos base del evento
+    const eventoRes = await pool.query(
       'SELECT id, nombre, descripcion FROM eventos WHERE id = $1',
       [id]
     );
+    if (!eventoRes.rows.length) return null;
+    const evento = eventoRes.rows[0];
 
-    if (!eventoResult.rows.length) return null;
-    const evento = eventoResult.rows[0];
+    // 2. Campos extra según la fuente
     let detalle = {};
-
-    // 2. Detalles según la fuente
     switch (origen) {
       case 'sheets_detalles':
-        const sheets = await pool.query(`
-          SELECT tipo_de_lugar, redes_sociales, pagina_web, zona
-          FROM sheets_detalles 
-          WHERE evento_id = $1
-        `, [id]);
-        detalle = sheets.rows[0] || {};
+        {
+          const sheetsRes = await pool.query(`
+            SELECT 
+              tipo_de_lugar,
+              redes_sociales,
+              pagina_web,
+              zona,
+              ingreso_permitido
+            FROM sheets_detalles
+            WHERE evento_id = $1
+          `, [id]);
+          detalle = sheetsRes.rows[0] || {};
+        }
         break;
 
       case 'civitatis':
-        const civ = await pool.query(`
-          SELECT precio, fuente AS enlace
-          FROM civitatis 
-          WHERE evento_id = $1
-        `, [id]);
-        detalle = civ.rows[0] || {};
+        {
+          const civRes = await pool.query(`
+            SELECT precio, fuente AS enlace
+            FROM civitatis
+            WHERE evento_id = $1
+          `, [id]);
+          detalle = civRes.rows[0] || {};
+        }
         break;
 
       case 'imperdibles':
-        const imp = await pool.query(`
-          SELECT link AS enlace 
-          FROM imperdibles 
-          WHERE evento_id = $1
-        `, [id]);
-        detalle = imp.rows[0] || {};
+        {
+          const impRes = await pool.query(`
+            SELECT link AS enlace 
+            FROM imperdibles 
+            WHERE evento_id = $1
+          `, [id]);
+          detalle = impRes.rows[0] || {};
+        }
         break;
 
       case 'museos':
-        const mus = await pool.query(`
-          SELECT link AS enlace 
-          FROM museos 
-          WHERE evento_id = $1
-        `, [id]);
-        detalle = mus.rows[0] || {};
+        {
+          const musRes = await pool.query(`
+            SELECT link AS enlace 
+            FROM museos 
+            WHERE evento_id = $1
+          `, [id]);
+          detalle = musRes.rows[0] || {};
+        }
         break;
 
       default:
         return null;
     }
 
-    // 3. Consolidar respuesta
+    // 3. Consolidar todo en la respuesta
     return {
       nombre: evento.nombre,
       descripcion: evento.descripcion,
+      
+      // si la fuente es sheets_detalles, estos campos vendrán de `detalle`
+      tipo_de_lugar: detalle.tipo_de_lugar || null,
+      redes_sociales: detalle.redes_sociales || null,
+      pagina_web: detalle.pagina_web     || null,
+      zona: detalle.zona                 || null,
+      ingreso_permitido: detalle.ingreso_permitido || null,
+
+      // para otras fuentes
       precio: detalle.precio || null,
       enlace: detalle.enlace || null,
     };
