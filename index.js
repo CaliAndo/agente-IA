@@ -2,7 +2,7 @@
 require('dotenv').config();
 const express = require('express');
 const axios   = require('axios');
-const { getDetallePorFuente } = require('./services/db/getDetalle');
+const { getDetallePorFuente }   = require('./services/db/getDetalle');
 const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
 
 const app = express();
@@ -20,7 +20,7 @@ if (!FASTAPI_URL) throw new Error("🚨 FASTAPI_URL no está definida");
 
 // Estado por usuario
 const sessionData       = {};  // { from: { context, dictPages?, dictPageIdx? } }
-const eventosCache      = {};  // { from: { lista } }
+const eventosCache      = {};  // { from: { lista, page } }
 const inactividadTimers = {};  // { from: { warning, close } }
 
 function sendMessage(to, text) {
@@ -31,11 +31,12 @@ function sendMessage(to, text) {
   ).catch(console.error);
 }
 
-function normalize(s) {
-  return s.normalize('NFD')
-          .replace(/[\u0300-\u036f]/g,'')
-          .trim()
-          .toLowerCase();
+function normalize(str) {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
 }
 
 function clearTimers(from) {
@@ -82,7 +83,7 @@ app.post('/webhook', async (req, res) => {
   clearTimers(from);
 
   try {
-    // 1) Si es saludo (cualquier saludo) ➔ siempre saludo de bienvenida
+    // 1) Saludo siempre que detectes cualquier saludo
     const SALUDOS = ['hola','buenas','hey','holi','buenas tardes','buenos días'];
     if (SALUDOS.some(w => text.includes(w))) {
       resetUser(from);
@@ -104,7 +105,6 @@ Estoy listo para ayudarte. 🇨🇴💃`
       return res.sendStatus(200);
     }
     if (sessionData[from]?.context === 'diccionario') {
-      // Fragmentar respuestas largas
       if (!sessionData[from].dictPages) {
         const meaning = await getMeaningFromSerpAPI(text);
         if (!meaning) {
@@ -124,28 +124,43 @@ Estoy listo para ayudarte. 🇨🇴💃`
         startInactivity(from, reply);
         return res.sendStatus(200);
       }
-      // Páginas siguientes
       if (text === 'ver mas') {
         const idx   = sessionData[from].dictPageIdx + 1;
         const pages = sessionData[from].dictPages;
         if (idx < pages.length) {
           sessionData[from].dictPageIdx = idx;
           await reply(pages[idx]);
-          if (idx < pages.length - 1) {
-            await reply('💡 Envía "ver mas" para más...');
-          }
+          if (idx < pages.length - 1) await reply('💡 Envía "ver mas" para más...');
         }
         startInactivity(from, reply);
         return res.sendStatus(200);
       }
     }
 
-    // 3) Si viene un número y hay lista de resultados ➔ mostrar detalle
-    if (!isNaN(text) && eventosCache[from]) {
-      const idx  = parseInt(text, 10) - 1;
-      const item = eventosCache[from].lista[idx];
-      if (item) {
-        const d = await getDetallePorFuente(item.fuente, item.referencia_id);
+    // 3) Selección de plan: sólo por nombre
+    if (sessionData[from]?.context === 'resultados') {
+      const cache = eventosCache[from];
+      // paginar
+      if (text === 'ver mas') {
+        cache.page = (cache.page || 0) + 1;
+        const start = cache.page * 5;
+        const next  = cache.lista.slice(start, start + 5);
+        if (next.length) {
+          const listTxt = next.map(it => `• ${it.nombre}`).join('\n');
+          await reply(`🔎 Más recomendaciones:\n\n${listTxt}\n\nEscribe el NOMBRE del plan para ver detalles.`);
+        } else {
+          await reply('📜 No hay más resultados.');
+        }
+        startInactivity(from, reply);
+        return res.sendStatus(200);
+      }
+      // selección por nombre (partial match)
+      const elegido = cache.lista.find(ev => {
+        const nombreNorm = normalize(ev.nombre);
+        return text.includes(nombreNorm) || nombreNorm.includes(text);
+      });
+      if (elegido) {
+        const d = await getDetallePorFuente(elegido.fuente, elegido.referencia_id);
         if (d) {
           let msgText = `📚 *${d.nombre}*\n\n`;
           if (d.descripcion)       msgText += `📜 ${d.descripcion}\n\n`;
@@ -161,36 +176,32 @@ Estoy listo para ayudarte. 🇨🇴💃`
         } else {
           await reply('❌ No encontré detalles para esa opción.');
         }
-      } else {
-        await reply('❌ Número inválido. Elige uno de la lista.');
+        resetUser(from);
+        return res.sendStatus(200);
       }
-      resetUser(from);
+      await reply('❌ No reconocí ese nombre. Escribe el NOMBRE exacto del plan o "ver mas".');
+      startInactivity(from, reply);
       return res.sendStatus(200);
     }
 
-    // 4) Búsqueda semántica (partial‐match & “ver mas”)
+    // 4) Nueva búsqueda semántica
     const { data } = await axios.post(
       `${FASTAPI_URL}/buscar-coincidencia`,
       { texto: text, fuente: 'whatsapp', nombre: 'CaliAndo' }
     );
     if (!data.ok || !data.resultados.length) {
-      await reply('😔 No encontré nada. Prueba con otra frase.');
+      await reply('😔 No encontré nada con esa frase. Prueba otra.');
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
+    eventosCache[from]    = { lista: data.resultados, page: 0 };
+    sessionData[from]     = { context: 'resultados' };
 
-    // Guardar lista completa
-    eventosCache[from] = { lista: data.resultados, page: 0 };
-    sessionData[from]   = { context: 'resultados' };
-
-    // Enviar primeros 5
-    const list = data.resultados
-      .slice(0, 5)
-      .map((it, i) => `${i+1}. ${it.nombre}`)
-      .join('\n\n');
+    const primeros         = data.resultados.slice(0,5);
+    const primerosTxt      = primeros.map(it => `• ${it.nombre}`).join('\n');
     await reply(
-`🔎 Te recomiendo estos planes:\n\n${list}\n\n` +
-`Escribe el número o el nombre del plan, o "ver mas" para más.`
+`🔎 Te recomiendo estos planes:\n\n${primerosTxt}\n\n` +
+`Escribe el NOMBRE del plan o "ver mas" para más.`
     );
     startInactivity(from, reply);
     return res.sendStatus(200);
@@ -203,6 +214,6 @@ Estoy listo para ayudarte. 🇨🇴💃`
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 CaliAndo Bot en 0.0.0.0:${PORT}`);
+  console.log(`🚀 CaliAndo Bot escuchando en 0.0.0.0:${PORT}`);
   console.log(`🔗 FASTAPI_URL → ${FASTAPI_URL}`);
 });
