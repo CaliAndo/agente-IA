@@ -2,91 +2,93 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL + '?sslmode=require',
   ssl: { rejectUnauthorized: false },
 });
 
+/**
+ * Devuelve los detalles de un evento según su fuente.
+ * Si la fuente es 'eventos', retorna solo el nombre y descripción.
+ */
 async function getDetallePorFuente(origen, id) {
-  if (!origen || !id) return null;
+  if (!id) return null;
 
   try {
-    // 1. Datos base del evento
+    // 1️⃣ Obtener datos base del evento
     const eventoRes = await pool.query(
       'SELECT id, nombre, descripcion FROM eventos WHERE id = $1',
       [id]
     );
     if (!eventoRes.rows.length) return null;
-    const evento = eventoRes.rows[0];
+    const { nombre, descripcion } = eventoRes.rows[0];
 
-    // 2. Campos extra según la fuente
     let detalle = {};
+
+    // 2️⃣ Obtener datos adicionales según la fuente
     switch (origen) {
-      case 'sheets_detalles':
-        {
-          const sheetsRes = await pool.query(`
-            SELECT 
-              tipo_de_lugar,
-              redes_sociales,
-              pagina_web,
-              zona,
-              ingreso_permitido
-            FROM sheets_detalles
-            WHERE evento_id = $1
-          `, [id]);
-          detalle = sheetsRes.rows[0] || {};
-        }
+      case 'sheets_detalles': {
+        const res = await pool.query(
+          `SELECT 
+             tipo_de_lugar,
+             redes_sociales,
+             pagina_web,
+             zona,
+             ingreso_permitido
+           FROM sheets_detalles
+           WHERE evento_id = $1`,
+          [id]
+        );
+        detalle = res.rows[0] || {};
         break;
-
-      case 'civitatis':
-        {
-          const civRes = await pool.query(`
-            SELECT precio, fuente AS enlace
-            FROM civitatis
-            WHERE evento_id = $1
-          `, [id]);
-          detalle = civRes.rows[0] || {};
-        }
+      }
+      case 'civitatis': {
+        const res = await pool.query(
+          `SELECT precio, fuente AS enlace
+             FROM civitatis
+            WHERE evento_id = $1`,
+          [id]
+        );
+        detalle = res.rows[0] || {};
         break;
-
-      case 'imperdibles':
-        {
-          const impRes = await pool.query(`
-            SELECT link AS enlace 
-            FROM imperdibles 
-            WHERE evento_id = $1
-          `, [id]);
-          detalle = impRes.rows[0] || {};
-        }
+      }
+      case 'imperdibles': {
+        const res = await pool.query(
+          `SELECT link AS enlace
+             FROM imperdibles
+            WHERE evento_id = $1`,
+          [id]
+        );
+        detalle = res.rows[0] || {};
         break;
-
-      case 'museos':
-        {
-          const musRes = await pool.query(`
-            SELECT link AS enlace 
-            FROM museos 
-            WHERE evento_id = $1
-          `, [id]);
-          detalle = musRes.rows[0] || {};
-        }
+      }
+      case 'museos': {
+        const res = await pool.query(
+          `SELECT link AS enlace
+             FROM museos
+            WHERE evento_id = $1`,
+          [id]
+        );
+        detalle = res.rows[0] || {};
         break;
-
+      }
+      case 'eventos':
       default:
-        return null;
+        // No hay tablas secundarias: solo datos base
+        detalle = {};
+        break;
     }
 
-    // 3. Consolidar todo en la respuesta
+    // 3️⃣ Consolidar respuesta
     return {
-      nombre: evento.nombre,
-      descripcion: evento.descripcion,
-      
-      // si la fuente es sheets_detalles, estos campos vendrán de `detalle`
+      nombre,
+      descripcion,
+      // Campos específicos de sheets_detalles
       tipo_de_lugar: detalle.tipo_de_lugar || null,
       redes_sociales: detalle.redes_sociales || null,
-      pagina_web: detalle.pagina_web     || null,
-      zona: detalle.zona                 || null,
+      pagina_web: detalle.pagina_web || null,
+      zona: detalle.zona || null,
       ingreso_permitido: detalle.ingreso_permitido || null,
-
-      // para otras fuentes
+      // Para otras fuentes
       precio: detalle.precio || null,
       enlace: detalle.enlace || null,
     };
