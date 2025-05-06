@@ -1,3 +1,4 @@
+// index.js
 require('dotenv').config();
 const express = require('express');
 const axios   = require('axios');
@@ -7,8 +8,19 @@ const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
 const app = express();
 app.use(express.json());
 
-// Health‐check
+// 🚑 Health-check
 app.get('/', (_req, res) => res.status(200).send('🟢 CaliAndo Bot OK'));
+
+// 🔗 Verificación de webhook
+app.get('/webhook', (req, res) => {
+  const mode      = req.query['hub.mode'];
+  const token     = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+    return res.status(200).send(challenge);
+  }
+  res.sendStatus(403);
+});
 
 const PORT           = process.env.PORT || 3000;
 const VERIFY_TOKEN   = process.env.WHATSAPP_VERIFY_TOKEN;
@@ -17,11 +29,14 @@ const PHONE_ID       = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const FASTAPI_URL    = process.env.FASTAPI_URL;
 if (!FASTAPI_URL) throw new Error("🚨 FASTAPI_URL no está definida");
 
-// Estado por usuario
-const sessionData       = {};  // { from: { context, dictPages?, dictPageIdx? } }
-const eventosCache      = {};  // { from: { lista } }
-const inactividadTimers = {};  // { from: { warning, close } }
+// — Estado por usuario
+// sessionData[from] = { context, greeted?, dictPages?, dictPageIdx? }
+// eventosCache[from] = { lista, pagina }
+const sessionData       = {};
+const eventosCache      = {};
+const inactividadTimers = {};
 
+// — Enviar mensaje de WhatsApp
 function sendMessage(to, text) {
   return axios.post(
     `https://graph.facebook.com/v18.0/${PHONE_ID}/messages`,
@@ -30,6 +45,7 @@ function sendMessage(to, text) {
   ).catch(console.error);
 }
 
+// — Normalizar texto (sin tildes, minúsculas)
 function normalize(s) {
   return s.normalize('NFD')
           .replace(/[\u0300-\u036f]/g,'')
@@ -37,6 +53,7 @@ function normalize(s) {
           .toLowerCase();
 }
 
+// — Limpiar timers de inactividad
 function clearTimers(from) {
   const t = inactividadTimers[from];
   if (t) {
@@ -46,27 +63,31 @@ function clearTimers(from) {
   }
 }
 
+// — Resetear estado (conservar greeted)
 function resetUser(from) {
-  sessionData[from] = { context: 'inicio' };
+  const greeted = sessionData[from]?.greeted;
+  sessionData[from] = { context: 'inicio', greeted };
   delete eventosCache[from];
   delete sessionData[from].dictPages;
   delete sessionData[from].dictPageIdx;
   clearTimers(from);
 }
 
-/**
- * Warning a 1' y cierre a 2', siempre reseteando tras el cierre.
- */
+// — Warning y cierre automáticos
 function startInactivity(from, reply) {
   clearTimers(from);
+  const WARNING_DELAY = 2 * 60 * 1000;  // 2 min
+  const CLOSE_DELAY   = 5 * 60 * 1000;  // 5 min
+
   inactividadTimers[from] = {
     warning: setTimeout(() => {
       reply('🔔 Sigo aquí si necesitas ayuda. ¿Quieres que te recomiende algo más?');
-    }, 60_000),
+    }, WARNING_DELAY),
+
     close: setTimeout(() => {
       reply('🕒 Parece que no hubo respuesta. ¡CaliAndo se despide por ahora! Vuelve cuando quieras 👋');
       resetUser(from);
-    }, 120_000)
+    }, CLOSE_DELAY)
   };
 }
 
@@ -78,23 +99,23 @@ app.post('/webhook', async (req, res) => {
   const text = normalize(msg.text.body);
   const reply = txt => sendMessage(from, txt);
 
-  clearTimers(from);
-
-  try {
-    // — SALUDO INICIAL —
-    if (['hola','buenas','hey','holi'].includes(text)) {
-      resetUser(from);
-      await reply(
+  // — Primer mensaje de usuario → saludo inicial —
+  if (!sessionData[from]?.greeted) {
+    sessionData[from] = { context: 'inicio', greeted: true };
+    await reply(
 `👋 ¡Hola! Soy *CaliAndo* y estoy aquí para ayudarte a descubrir lo mejor de Cali.
 Cuéntame qué te gustaría hacer hoy: ¿te antoja algo cultural, quieres parchar con amigos o recorrer lugares nuevos?
 Además, recuerda que tengo un *diccionario caleño*: escribe "diccionario" + tu palabra.
 🇨🇴💃`
-      );
-      startInactivity(from, reply);
-      return res.sendStatus(200);
-    }
+    );
+    startInactivity(from, reply);
+    return res.sendStatus(200);
+  }
 
-    // — INICIO DICCIONARIO —
+  clearTimers(from);
+
+  try {
+    // — Diccionario: inicio —
     if (text.startsWith('diccionario')) {
       resetUser(from);
       sessionData[from].context = 'diccionario';
@@ -103,9 +124,9 @@ Además, recuerda que tengo un *diccionario caleño*: escribe "diccionario" + tu
       return res.sendStatus(200);
     }
 
-    // — DICCIONARIO: fragmentado —
+    // — Diccionario: mostrar significado en páginas —
     if (sessionData[from]?.context === 'diccionario') {
-      // crear fragmentos
+      // primera página
       if (!sessionData[from].dictPages) {
         const meaning = await getMeaningFromSerpAPI(text);
         if (!meaning) {
@@ -113,6 +134,7 @@ Además, recuerda que tengo un *diccionario caleño*: escribe "diccionario" + tu
           startInactivity(from, reply);
           return res.sendStatus(200);
         }
+        // dividir en trozos de 800 chars
         const pages = [];
         for (let i = 0; i < meaning.length; i += 800) {
           pages.push(meaning.slice(i, i + 800));
@@ -141,8 +163,38 @@ Además, recuerda que tengo un *diccionario caleño*: escribe "diccionario" + tu
       }
     }
 
-    // — DETALLE SI ES NÚMERO —
-    if (!isNaN(text) && eventosCache[from]) {
+    // — Paginación de resultados: "ver mas" en búsqueda semántica —
+    if (text.includes('ver mas') && sessionData[from]?.context === 'resultados') {
+      const cache = eventosCache[from];
+      if (!cache) {
+        await reply('ℹ️ No hay resultados activos. Escribe algo para buscar.');
+        startInactivity(from, reply);
+        return res.sendStatus(200);
+      }
+
+      const nextPage  = cache.pagina + 1;
+      const startIdx  = nextPage * 5;
+      const pageItems = cache.lista.slice(startIdx, startIdx + 5);
+
+      if (pageItems.length === 0) {
+        await reply('📜 Ya no hay más resultados disponibles.');
+      } else {
+        cache.pagina = nextPage;
+        const listText = pageItems
+          .map((item, i) => `${startIdx + i + 1}. ${item.nombre}`)
+          .join('\n\n');
+        await reply(
+          `📍 Más resultados:\n\n${listText}\n\n` +
+          `Responde con el número para ver detalles, o escribe "ver mas" para seguir.`
+        );
+      }
+
+      startInactivity(from, reply);
+      return res.sendStatus(200);
+    }
+
+    // — Selección por número —
+    if (!isNaN(text) && sessionData[from]?.context === 'resultados') {
       const idx  = parseInt(text, 10) - 1;
       const item = eventosCache[from].lista[idx];
       if (!item) {
@@ -171,24 +223,33 @@ Además, recuerda que tengo un *diccionario caleño*: escribe "diccionario" + tu
       return res.sendStatus(200);
     }
 
-    // — NUEVA BÚSQUEDA SEMÁNTICA —
+    // — Nueva búsqueda semántica —
     const { data } = await axios.post(
       `${FASTAPI_URL}/buscar-coincidencia`,
       { texto: text, fuente: 'whatsapp', nombre: 'CaliAndo' }
     );
+
     if (!data.ok || !data.resultados.length) {
       await reply('😔 No encontré nada. Prueba con otra frase.');
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
-    eventosCache[from] = { lista: data.resultados };
-    sessionData[from]   = { context: 'resultados' };
 
-    const list = data.resultados
+    // Guardar resultados y reset de página
+    eventosCache[from] = { lista: data.resultados, pagina: 0 };
+    sessionData[from]   = { context: 'resultados', greeted: sessionData[from].greeted };
+
+    // Enviar primeros 5
+    const primeros = data.resultados
       .slice(0, 5)
-      .map((it, i) => `${i+1}. ${it.nombre}`)
+      .map((it, i) => `${i + 1}. ${it.nombre}`)
       .join('\n\n');
-    await reply(`🔎 Encontré:\n\n${list}\n\nResponde con el número para ver detalles.`);
+
+    await reply(
+      `🔎 Encontré estas opciones:\n\n${primeros}\n\n` +
+      `Responde con el número para ver detalles, o escribe "ver mas" para más resultados.`
+    );
+
     startInactivity(from, reply);
     return res.sendStatus(200);
 
@@ -199,7 +260,7 @@ Además, recuerda que tengo un *diccionario caleño*: escribe "diccionario" + tu
   }
 });
 
-// Arranque
+// 🔥 Arrancar servidor
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 CaliAndo Bot escuchando en 0.0.0.0:${PORT}`);
   console.log(`🔗 FASTAPI_URL → ${FASTAPI_URL}`);
