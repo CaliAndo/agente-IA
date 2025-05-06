@@ -1,99 +1,104 @@
+// services/db/getDetallePorFuente.js
 const { Pool } = require('pg');
 require('dotenv').config();
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL + '?sslmode=require',
+  connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
 });
 
-/**
- * Devuelve los detalles de un evento según su fuente.
- * Si la fuente es 'eventos', retorna solo el nombre y descripción.
- */
 async function getDetallePorFuente(origen, id) {
-  if (!id) return null;
+  if (!origen || !id) return null;
 
   try {
-    // 1️⃣ Obtener datos base del evento
+    // 1) Siempre partimos de la tabla 'eventos' para obtener nombre y descripción
     const eventoRes = await pool.query(
-      'SELECT id, nombre, descripcion FROM eventos WHERE id = $1',
+      `SELECT id, nombre, descripcion
+         FROM eventos
+        WHERE id = $1`,
       [id]
     );
     if (!eventoRes.rows.length) return null;
     const { nombre, descripcion } = eventoRes.rows[0];
 
-    let detalle = {};
-
-    // 2️⃣ Obtener datos adicionales según la fuente
+    // 2) Campos específicos según la fuente
+    let extra = {};  
     switch (origen) {
-      case 'sheets_detalles': {
-        const res = await pool.query(
-          `SELECT 
-             tipo_de_lugar,
-             redes_sociales,
-             pagina_web,
-             zona,
-             ingreso_permitido
-           FROM sheets_detalles
-           WHERE evento_id = $1`,
-          [id]
-        );
-        detalle = res.rows[0] || {};
+      case 'sheets_detalles':
+        {
+          const { rows } = await pool.query(`
+            SELECT tipo_de_lugar,
+                   redes_sociales,
+                   pagina_web,
+                   zona,
+                   ingreso_permitido
+              FROM sheets_detalles
+             WHERE evento_id = $1
+          `, [id]);
+          extra = rows[0] || {};
+        }
         break;
-      }
-      case 'civitatis': {
-        const res = await pool.query(
-          `SELECT precio, fuente AS enlace
-             FROM civitatis
-            WHERE evento_id = $1`,
-          [id]
-        );
-        detalle = res.rows[0] || {};
+
+      case 'civitatis':
+        {
+          const { rows } = await pool.query(`
+            SELECT precio,
+                   fuente AS enlace
+              FROM civitatis
+             WHERE evento_id = $1
+          `, [id]);
+          extra = rows[0] || {};
+        }
         break;
-      }
-      case 'imperdibles': {
-        const res = await pool.query(
-          `SELECT link AS enlace
-             FROM imperdibles
-            WHERE evento_id = $1`,
-          [id]
-        );
-        detalle = res.rows[0] || {};
+
+      case 'imperdibles':
+        {
+          const { rows } = await pool.query(`
+            SELECT link AS enlace
+              FROM imperdibles
+             WHERE evento_id = $1
+          `, [id]);
+          extra = rows[0] || {};
+        }
         break;
-      }
-      case 'museos': {
-        const res = await pool.query(
-          `SELECT link AS enlace
-             FROM museos
-            WHERE evento_id = $1`,
-          [id]
-        );
-        detalle = res.rows[0] || {};
+
+      case 'museos':
+        {
+          const { rows } = await pool.query(`
+            SELECT link AS enlace
+              FROM museos
+             WHERE evento_id = $1
+          `, [id]);
+          extra = rows[0] || {};
+        }
         break;
-      }
+
+      // CASOS “GENÉRICOS” que deben devolver siempre el base de 'eventos'
       case 'eventos':
+      case 'whatsapp':
+      case 'api':
       default:
-        // No hay tablas secundarias: solo datos base
-        detalle = {};
+        // No hacemos nada, extra queda vacío
+        extra = {};
         break;
     }
 
-    // 3️⃣ Consolidar respuesta
+    // 3) Consolidamos la respuesta
     return {
       nombre,
       descripcion,
-      // Campos específicos de sheets_detalles
-      tipo_de_lugar: detalle.tipo_de_lugar || null,
-      redes_sociales: detalle.redes_sociales || null,
-      pagina_web: detalle.pagina_web || null,
-      zona: detalle.zona || null,
-      ingreso_permitido: detalle.ingreso_permitido || null,
-      // Para otras fuentes
-      precio: detalle.precio || null,
-      enlace: detalle.enlace || null,
+      // campos comunes a sheets_detalles
+      tipo_de_lugar:        extra.tipo_de_lugar        || null,
+      redes_sociales:       extra.redes_sociales       || null,
+      pagina_web:           extra.pagina_web           || null,
+      zona:                 extra.zona                 || null,
+      ingreso_permitido:    extra.ingreso_permitido    || null,
+      // campos comunes a civitatis, imperdibles, museos
+      precio:               extra.precio               || null,
+      enlace:               extra.enlace               || null,
     };
-  } catch (error) {
-    console.error('❌ Error al obtener detalle por fuente:', error);
+  } catch (err) {
+    console.error('❌ Error al obtener detalle por fuente:', err);
     return null;
   }
 }
