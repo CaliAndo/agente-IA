@@ -2,7 +2,7 @@
 require('dotenv').config();
 const express = require('express');
 const axios   = require('axios');
-const { getDetallePorFuente } = require('./services/db/getDetallePorFuente');
+const { getDetallePorFuente } = require('./services/db/getDetalle');
 const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
 
 const app = express();
