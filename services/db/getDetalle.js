@@ -56,7 +56,7 @@ async function getDetallePorFuente(fuente, id) {
           const res = await pool.query(
             `SELECT 
                 precio,
-                fuente
+                fuente AS enlace
                FROM civitatis
               WHERE evento_id = $1`,
             [id]

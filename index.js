@@ -161,6 +161,8 @@ Estoy listo para ayudarte. 🇨🇴💃`
       });
       if (elegido) {
         const d = await getDetallePorFuente(elegido.fuente, elegido.referencia_id);
+        console.log('📌 [webhook] → getDetallePorFuente(', elegido.fuente, elegido.referencia_id, ')');
+
         if (d) {
           let msgText = `📚 *${d.nombre}*\n\n`;
           if (d.descripcion)       msgText += `📜 ${d.descripcion}\n\n`;
