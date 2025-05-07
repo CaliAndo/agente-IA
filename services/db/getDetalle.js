@@ -1,4 +1,4 @@
-// services/db/getDetalle.js
+// services/db/getDetallePorFuente.js
 const { Pool } = require('pg');
 require('dotenv').config();
 
@@ -8,96 +8,106 @@ const pool = new Pool({
 });
 
 /**
- * Dada la cadena 'origen' (puede ser URL, nombre de fuente, etc.)
- * devuelve el nombre de la tabla donde buscar los campos extra.
+ * Devuelve un objeto con:
+ *  - nombre, descripcion            (siempre desde eventos)
+ *  - tipo_de_lugar, redes_sociales, pagina_web, zona, ingreso_permitido (si fuente==='sheets_detalles')
+ *  - precio, enlace                (si fuente==='civitatis')
+ *  - enlace                        (si fuente==='imperdibles' o 'museos')
+ *
+ * @param {string} fuente  nombre de la tabla secundaria
+ * @param {number} id      evento_id
  */
-function whichTable(origen) {
-  if (!origen) return null;
-  origen = origen.toLowerCase();
-  if (origen.includes('civitatis.com'))    return 'civitatis';
-  if (origen.includes('visitcali.travel'))  return 'museos';
-  if (origen.includes('imperdibles'))       return 'imperdibles';
-  if (origen === 'sheets_detalles')         return 'sheets_detalles';
-  // agrega más mapeos si tienes otras fuentes...
-  return null;
-}
-
-/**
- * Recupera el detalle completo de un evento:
- *   - Siempre parte de la tabla 'eventos' (nombre, descripción)
- *   - Luego busca en la tabla secundaria según la fuente
- */
-async function getDetallePorFuente(origen, id) {
-  if (!origen || !id) return null;
+async function getDetallePorFuente(fuente, id) {
+  if (!fuente || !id) return null;
 
   try {
-    // 1) Datos base del evento
-    const evtRes = await pool.query(
+    // 1) Base: siempre sacamos nombre y descripcion de eventos
+    const evt = await pool.query(
       `SELECT nombre, descripcion
          FROM eventos
         WHERE id = $1`,
       [id]
     );
-    if (!evtRes.rows.length) return null;
-    const { nombre, descripcion } = evtRes.rows[0];
+    if (!evt.rows.length) return null;
+    const { nombre, descripcion } = evt.rows[0];
 
-    // 2) Determinar tabla secundaria y buscar allí
-    const tabla = whichTable(origen);
+    // 2) Campos extra según la tabla 'fuente'
     let extra = {};
-
-    if (tabla === 'civitatis') {
-      const r = await pool.query(
-        `SELECT precio,
-                fuente AS enlace
-           FROM civitatis
-          WHERE evento_id = $1`,
-        [id]
-      );
-      extra = r.rows[0] || {};
-
-    } else if (tabla === 'museos') {
-      const r = await pool.query(
-        `SELECT link AS enlace
-           FROM museos
-          WHERE evento_id = $1`,
-        [id]
-      );
-      extra = r.rows[0] || {};
-
-    } else if (tabla === 'imperdibles') {
-      const r = await pool.query(
-        `SELECT link AS enlace
-           FROM imperdibles
-          WHERE evento_id = $1`,
-        [id]
-      );
-      extra = r.rows[0] || {};
-
-    } else if (tabla === 'sheets_detalles') {
-      const r = await pool.query(
-        `SELECT tipo_de_lugar,
+    switch (fuente) {
+      case 'sheets_detalles':
+        {
+          const res = await pool.query(
+            `SELECT 
+                tipo_de_lugar,
                 redes_sociales,
                 pagina_web,
                 zona,
                 ingreso_permitido
-           FROM sheets_detalles
-          WHERE evento_id = $1`,
-        [id]
-      );
-      extra = r.rows[0] || {};
+               FROM sheets_detalles
+              WHERE evento_id = $1`,
+            [id]
+          );
+          extra = res.rows[0] || {};
+        }
+        break;
+
+      case 'civitatis':
+        {
+          const res = await pool.query(
+            `SELECT 
+                precio,
+                fuente
+               FROM civitatis
+              WHERE evento_id = $1`,
+            [id]
+          );
+          extra = res.rows[0] || {};
+        }
+        break;
+
+      case 'imperdibles':
+        {
+          const res = await pool.query(
+            `SELECT 
+                link AS enlace
+               FROM imperdibles
+              WHERE evento_id = $1`,
+            [id]
+          );
+          extra = res.rows[0] || {};
+        }
+        break;
+
+      case 'museos':
+        {
+          const res = await pool.query(
+            `SELECT 
+                link AS enlace
+               FROM museos
+              WHERE evento_id = $1`,
+            [id]
+          );
+          extra = res.rows[0] || {};
+        }
+        break;
+
+      default:
+        // si la fuente no coincide, no añadimos extra
+        extra = {};
+        break;
     }
 
-    // 3) Unificar y devolver
+    // 3) Devolvemos todo consolidados
     return {
       nombre,
       descripcion,
-      // campos de sheets_detalles
+      // de sheets_detalles
       tipo_de_lugar:     extra.tipo_de_lugar      || null,
       redes_sociales:    extra.redes_sociales     || null,
       pagina_web:        extra.pagina_web         || null,
       zona:              extra.zona               || null,
       ingreso_permitido: extra.ingreso_permitido  || null,
-      // campos de las otras tablas
+      // de civitatis / imperdibles / museos
       precio:            extra.precio             || null,
       enlace:            extra.enlace             || null,
     };
