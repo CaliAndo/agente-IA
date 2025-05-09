@@ -1,7 +1,7 @@
 const axios = require('axios');
 const qs    = require('querystring');
 
-const SERPAPI_KEY      = process.env.SERPAPI_API_KEY;
+const SERPAPI_KEY      = process.env.SERPAPI_KEY;
 const DEFAULT_LOCATION = process.env.DEFAULT_EVENT_LOCATION;
 
 if (!SERPAPI_KEY) {
