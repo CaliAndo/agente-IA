@@ -19,6 +19,7 @@
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
     "fuse.js": "^7.1.0",
+    "google-spreadsheet": "^4.1.4",
     "natural": "^8.0.1",
     "node-cron": "^3.0.3",
     "node-fetch": "^2.7.0",

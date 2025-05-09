@@ -2,7 +2,7 @@
 require('dotenv').config();
 const express = require('express');
 const axios   = require('axios');
-const { getDetallePorFuente }   = require('./services/db/getDetalle');
+const { getDetallePorFuente }   = require('./services/db/getDetallePorFuente');
 const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
 
 const app = express();
@@ -23,6 +23,7 @@ const sessionData       = {};  // { from: { context, dictPages?, dictPageIdx? } 
 const eventosCache      = {};  // { from: { lista, page } }
 const inactividadTimers = {};  // { from: { warning, close } }
 
+// Envía un mensaje de WhatsApp
 function sendMessage(to, text) {
   return axios.post(
     `https://graph.facebook.com/v18.0/${PHONE_ID}/messages`,
@@ -31,6 +32,7 @@ function sendMessage(to, text) {
   ).catch(console.error);
 }
 
+// Normaliza texto para comparación
 function normalize(str) {
   return str
     .normalize('NFD')
@@ -39,6 +41,7 @@ function normalize(str) {
     .trim();
 }
 
+// Limpia timers de inactividad
 function clearTimers(from) {
   const t = inactividadTimers[from];
   if (t) {
@@ -48,6 +51,7 @@ function clearTimers(from) {
   }
 }
 
+// Reinicia el contexto de un usuario
 function resetUser(from) {
   sessionData[from] = { context: 'inicio' };
   delete eventosCache[from];
@@ -56,9 +60,7 @@ function resetUser(from) {
   clearTimers(from);
 }
 
-/**
- * Warning a 1' y cierre a 2', siempre reseteando tras el cierre.
- */
+// Maneja inactividad: warning a 1’ y cierre a 2’
 function startInactivity(from, reply) {
   clearTimers(from);
   inactividadTimers[from] = {
@@ -72,18 +74,55 @@ function startInactivity(from, reply) {
   };
 }
 
+// Convierte un texto de precio en número para ordenar
+function parsePrice(str) {
+  if (!str) return Infinity;
+  const s = str.toLowerCase();
+  if (s.includes('gratis')) return 0;
+  // Extrae solo dígitos y los parsea
+  const digits = str.replace(/[^0-9]/g, '');
+  return digits ? parseInt(digits, 10) : Infinity;
+}
+
 app.post('/webhook', async (req, res) => {
   const msg = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
   if (!msg || msg.type !== 'text') return res.sendStatus(200);
 
-  const from = msg.from;
-  const text = normalize(msg.text.body);
+  const from  = msg.from;
+  const text  = normalize(msg.text.body);
   const reply = txt => sendMessage(from, txt);
 
   clearTimers(from);
 
+  // ————— FILTRADO “más baratos” / “más caros” —————
+  if (sessionData[from]?.context === 'resultados') {
+    const cache = eventosCache[from].lista;
+
+    if (text.includes('mas baratos') || text.includes('más baratos')) {
+      // Solo Civitatis
+      const civ = cache.filter(ev => ev.fuente === 'civitatis');
+      civ.sort((a, b) => parsePrice(a.precio) - parsePrice(b.precio));
+      const top5 = civ.slice(0, 5);
+      const list = top5.map(ev => `• ${ev.nombre} (${ev.precio})`).join('\n');
+      await reply(`💸 5 planes Civitatis más baratos:\n\n${list}`);
+      startInactivity(from, reply);
+      return res.sendStatus(200);
+    }
+
+    if (text.includes('mas caros') || text.includes('más caros')) {
+      const civ = cache.filter(ev => ev.fuente === 'civitatis');
+      civ.sort((a, b) => parsePrice(b.precio) - parsePrice(a.precio));
+      const top5 = civ.slice(0, 5);
+      const list = top5.map(ev => `• ${ev.nombre} (${ev.precio})`).join('\n');
+      await reply(`💎 5 planes Civitatis más caros:\n\n${list}`);
+      startInactivity(from, reply);
+      return res.sendStatus(200);
+    }
+  }
+  // ——————————————————————————————————————————
+
   try {
-    // 1) Saludo siempre que detectes cualquier saludo
+    // 1) Saludos
     const SALUDOS = ['hola','buenas','hey','holi','buenas tardes','buenos días'];
     if (SALUDOS.some(w => text.includes(w))) {
       resetUser(from);
@@ -160,8 +199,9 @@ Estoy listo para ayudarte. 🇨🇴💃`
         return text.includes(nombreNorm) || nombreNorm.includes(text);
       });
       if (elegido) {
-        const d = await getDetallePorFuente(elegido.fuente, elegido.referencia_id);
         console.log('📌 [webhook] → getDetallePorFuente(', elegido.fuente, elegido.referencia_id, ')');
+        const d = await getDetallePorFuente(elegido.fuente, elegido.referencia_id);
+        console.log('📌 [webhook] respuesta detalle:', d);
 
         if (d) {
           let msgText = `📚 *${d.nombre}*\n\n`;
@@ -199,8 +239,8 @@ Estoy listo para ayudarte. 🇨🇴💃`
     eventosCache[from]    = { lista: data.resultados, page: 0 };
     sessionData[from]     = { context: 'resultados' };
 
-    const primeros         = data.resultados.slice(0,5);
-    const primerosTxt      = primeros.map(it => `• ${it.nombre}`).join('\n');
+    const primeros    = data.resultados.slice(0,5);
+    const primerosTxt = primeros.map(it => `• ${it.nombre}`).join('\n');
     await reply(
 `🔎 Te recomiendo estos planes:\n\n${primerosTxt}\n\n` +
 `Escribe el NOMBRE del plan o "ver mas" para más.`
