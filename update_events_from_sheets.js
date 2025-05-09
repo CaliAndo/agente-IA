@@ -27,7 +27,6 @@ async function obtenerOCrearEvento(nombre, descripcion) {
   );
   if (rows.length) {
     const id = rows[0].id;
-    // Actualiza descripción si cambió
     await pool.query(
       'UPDATE eventos SET descripcion = $1 WHERE id = $2',
       [descripcion, id]
@@ -54,50 +53,54 @@ async function sync() {
 
   let nuevosEmbeddings = 0;
   for (const item of data) {
-    const nombre            = (item['Nombre del sitio'] || '').trim();
-    const descripcion       = (item['¿Qué puedes encontrar?'] || '').trim();
-    const tipo_de_lugar     = (item['Tipo de lugar'] || '').trim();
-    const redes_sociales    = (item['Redes sociales'] || '').trim();
-    const pagina_web        = (item['Página Web'] || '').trim();
-    const zona              = (item['Zona'] || '').trim();
-    const ingreso_permitido = (item['Ingreso permitido a'] || '').trim();
+    const nombre            = (item['Nombre del sitio']          || '').trim();
+    const descripcion       = (item['¿Qué puedes encontrar?']    || '').trim();
+    const tipo_de_lugar     = (item['Tipo de lugar']             || '').trim();
+    const redes_sociales    = (item['Redes sociales']            || '').trim();
+    const pagina_web        = (item['Página Web']                || '').trim();
+    const zona              = (item['Zona']                      || '').trim();
+    const ingreso_permitido = (item['Ingreso permitido a']       || '').trim();
 
     if (!nombre) continue; // saltar si no hay nombre
 
     // 1) Obtener o crear evento
     const eventoId = await obtenerOCrearEvento(nombre, descripcion);
 
-    // 2) Upsert en sheets_detalles (sin usar ON CONFLICT)
+    // 2) Upsert en sheets_detalles
     const detRes = await pool.query(
       'SELECT evento_id FROM sheets_detalles WHERE evento_id = $1',
       [eventoId]
     );
+
     if (detRes.rows.length) {
       // Actualizar registro existente
       await pool.query(
         `UPDATE sheets_detalles
            SET tipo_de_lugar    = $1,
-               redes_sociales   = $2,
-               pagina_web       = $3,
-               zona             = $4,
-               ingreso_permitido = $5
-         WHERE evento_id = $6`,
-        [tipo_de_lugar, redes_sociales, pagina_web, zona, ingreso_permitido, eventoId]
+               descripcion      = $2,
+               redes_sociales   = $3,
+               pagina_web       = $4,
+               zona             = $5,
+               ingreso_permitido = $6
+         WHERE evento_id = $7`,
+        [tipo_de_lugar, descripcion, redes_sociales, pagina_web, zona, ingreso_permitido, eventoId]
       );
     } else {
       // Insertar nuevo registro
       await pool.query(
         `INSERT INTO sheets_detalles
-           (evento_id, tipo_de_lugar, redes_sociales, pagina_web, zona, ingreso_permitido)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [eventoId, tipo_de_lugar, redes_sociales, pagina_web, zona, ingreso_permitido]
+           (evento_id, tipo_de_lugar, descripcion, redes_sociales, pagina_web, zona, ingreso_permitido)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [eventoId, tipo_de_lugar, descripcion, redes_sociales, pagina_web, zona, ingreso_permitido]
       );
     }
 
     // 3) Indexar embedding en embeddings_index_384 si no existe
     const { rowCount } = await pool.query(
-      `SELECT 1 FROM embeddings_index_384
-       WHERE referencia_id = $1 AND fuente = 'sheets'`,
+      `SELECT 1
+         FROM embeddings_index_384
+        WHERE referencia_id = $1
+          AND fuente = 'sheets'`,
       [eventoId]
     );
     if (rowCount === 0) {
