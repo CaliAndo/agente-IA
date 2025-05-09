@@ -2,12 +2,13 @@
 require('dotenv').config();
 const express = require('express');
 const axios   = require('axios');
-const { getDetallePorFuente } = require('./services/db/getDetalle');
+const { getDetallePorFuente } = require('./services/db/getDetallePorFuente');
+const { getLiveEvents }       = require('./services/serpAPI/googleEvents');
 
 const app = express();
 app.use(express.json());
 
-// Health‐check
+// Health-check
 app.get('/', (_req, res) => res.status(200).send('🟢 CaliAndo Bot OK'));
 
 const PORT         = process.env.PORT || 3000;
@@ -89,45 +90,61 @@ app.post('/webhook', async (req, res) => {
   clearTimers(from);
 
   try {
-    // 0) FILTRADO “más barato(s)” / “más caro(s)”
-    if (sessionData[from]?.context === 'resultados' &&
-       /(mas\s+barat[oa]s?|más\s+barat[oa]s?)/.test(text) ||
-       /(mas\s+car[oa]s?|más\s+car[oa]s?)/.test(text)
+    // 0) EVENTOS “EN VIVO” / “CERCANOS” / “HOY” / “FIN DE SEMANA”
+    const timeMatch = text.match(
+      /eventos?\s+(en vivo|cerca|hoy|manana|mañana|este fin de semana|finde)/
+    );
+    if (timeMatch) {
+      const when = timeMatch[1];
+      await reply(`🔍 Buscando eventos ${when}…`);
+      // Pasamos el filtro al query de SerpApi
+      const live = await getLiveEvents(`eventos ${when}`);
+      if (!live.length) {
+        await reply('😔 No encontré eventos para esa búsqueda.');
+      } else {
+        const list = live.map(ev =>
+          `• *${ev.title}*\n` +
+          `  📅 ${ev.date}\n` +
+          `  📍 ${ev.venue}\n` +
+          (ev.description ? `  📝 ${ev.description}\n` : '') +
+          `  🔗 ${ev.link}`
+        ).join('\n\n');
+        await reply(`🎫 Aquí algunos eventos ${when}:\n\n${list}`);
+      }
+      startInactivity(from, reply);
+      return res.sendStatus(200);
+    }
+
+    // 1) FILTRADO “más barato(s)” / “más caro(s)”
+    if (
+      sessionData[from]?.context === 'resultados' &&
+      (/(mas\s+barat[oa]s?|más\s+barat[oa]s?)/.test(text) ||
+       /(mas\s+car[oa]s?|más\s+car[oa]s?)/.test(text))
     ) {
-      // Solo Civitatis
       const subset = eventosCache[from].lista.filter(ev => ev.fuente === 'civitatis');
-      // Obtiene detalles (con precio) para cada plan
       const detalles = await Promise.all(
         subset.map(ev => getDetallePorFuente(ev.fuente, ev.referencia_id))
       );
-
-      // Combina, filtra solo con precio válido
       const combinado = subset.map((ev, i) => ({
-        nombre: ev.nombre,
+        nombre:   ev.nombre,
         precioStr: detalles[i]?.precio || '—',
         precioNum: parsePrice(detalles[i]?.precio)
-      })).filter(x => typeof x.precioNum === 'number');
-
-      // Decide orden: ascendente si busca “barato”, descendente si “caro”
-      const asc = /barat[oa]/.test(text);
-      combinado.sort((a, b) => asc
-        ? a.precioNum - b.precioNum
-        : b.precioNum - a.precioNum
+      })).filter(x => !isNaN(x.precioNum));
+      const asc = /(barat[oa])/.test(text);
+      combinado.sort((a, b) =>
+        asc ? a.precioNum - b.precioNum : b.precioNum - a.precioNum
       );
-
-      // Toma los 5 primeros
       const top5 = combinado.slice(0, 5);
       const header = asc
         ? '💸 5 planes Civitatis más baratos:\n\n'
         : '💎 5 planes Civitatis más caros:\n\n';
       const body = top5.map(x => `• ${x.nombre} (${x.precioStr})`).join('\n');
-
       await reply(header + body);
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
 
-    // 1) SALUDOS
+    // 2) SALUDOS
     const SALUDOS = ['hola','buenas','hey','holi','buenas tardes','buenos días'];
     if (SALUDOS.some(w => text.includes(w))) {
       resetUser(from);
@@ -140,7 +157,7 @@ Estoy listo para ayudarte. 🇨🇴💃`
       return res.sendStatus(200);
     }
 
-    // 2) DICCIONARIO
+    // 3) DICCIONARIO
     if (text.startsWith('diccionario')) {
       resetUser(from);
       sessionData[from].context = 'diccionario';
@@ -149,31 +166,25 @@ Estoy listo para ayudarte. 🇨🇴💃`
       return res.sendStatus(200);
     }
     if (sessionData[from]?.context === 'diccionario') {
-      // Tu lógica de paginación “ver mas”...
+      // lógica de “ver mas”…  
       return res.sendStatus(200);
     }
 
-    // 3) SELECCIÓN POR NOMBRE
+    // 4) SELECCIÓN POR NOMBRE
     if (sessionData[from]?.context === 'resultados') {
-      const cacheObj = eventosCache[from];
-
-      // “ver mas” para paginar
+      const cache = eventosCache[from];
       if (text === 'ver mas') {
-        cacheObj.page = (cacheObj.page || 0) + 1;
-        const start = cacheObj.page * 5;
-        const slice = cacheObj.lista.slice(start, start + 5);
-        const listTxt = slice.map(e => `• ${e.nombre}`).join('\n');
+        cache.page = (cache.page || 0) + 1;
+        const slice = cache.lista.slice(cache.page * 5, cache.page * 5 + 5);
         await reply(
           slice.length
-            ? `🔎 Más recomendaciones:\n\n${listTxt}\n\nEscribe el NOMBRE del plan para ver detalles.`
+            ? '🔎 Más recomendaciones:\n\n' + slice.map(e => `• ${e.nombre}`).join('\n') + '\n\nEscribe el NOMBRE del plan para ver detalles.'
             : '📜 No hay más resultados.'
         );
         startInactivity(from, reply);
         return res.sendStatus(200);
       }
-
-      // Selección por nombre
-      const elegido = cacheObj.lista.find(ev => {
+      const elegido = cache.lista.find(ev => {
         const nm = normalize(ev.nombre);
         return text.includes(nm) || nm.includes(text);
       });
@@ -191,21 +202,18 @@ Estoy listo para ayudarte. 🇨🇴💃`
           if (d.precio)            msg += `💰 ${d.precio}\n`;
           if (d.enlace)            msg += `🔗 Más info: ${d.enlace}\n`;
           await reply(msg);
-          startInactivity(from, reply);
         } else {
           await reply('❌ No encontré detalles para esa opción.');
-          startInactivity(from, reply);
         }
-        // mantenemos contexto para seguir filtrando
+        startInactivity(from, reply);
         return res.sendStatus(200);
       }
-
       await reply('❌ No reconocí ese nombre. Escribe el NOMBRE exacto del plan o "ver mas".');
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
 
-    // 4) BÚSQUEDA SEMÁNTICA
+    // 5) BÚSQUEDA SEMÁNTICA
     const { data } = await axios.post(
       `${FASTAPI_URL}/buscar-coincidencia`,
       { texto: text, fuente: 'whatsapp', nombre: 'CaliAndo' }
@@ -215,14 +223,10 @@ Estoy listo para ayudarte. 🇨🇴💃`
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
-
-    eventosCache[from] = { lista: data.resultados, page: 0 };
-    sessionData[from]  = { context: 'resultados' };
-
+    eventosCache[from]  = { lista: data.resultados, page: 0 };
+    sessionData[from]   = { context: 'resultados' };
     const primeros = data.resultados.slice(0, 5).map(e => `• ${e.nombre}`).join('\n');
-    await reply(
-      `🔎 Te recomiendo estos planes:\n\n${primeros}\n\nEscribe el NOMBRE del plan o "ver mas" para más.`
-    );
+    await reply(`🔎 Te recomiendo estos planes:\n\n${primeros}\n\nEscribe el NOMBRE del plan o "ver mas" para más.`);
     startInactivity(from, reply);
     return res.sendStatus(200);
 
