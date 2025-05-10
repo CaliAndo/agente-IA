@@ -1,29 +1,33 @@
-require('dotenv').config();
 const axios = require('axios');
+const qs    = require('querystring');
 
-const apiKey = process.env.OPENAI_API_KEY;
+const SERPAPI_KEY      = process.env.SERPAPI_KEY;
+// Fallback a "Cali, Colombia" si no lo defines en .env
+const DEFAULT_LOCATION = process.env.DEFAULT_EVENT_LOCATION || 'Cali, Colombia';
 
-async function testEmbedding() {
+if (!SERPAPI_KEY) {
+  throw new Error('🚨 Define SERPAPI_KEY en tu .env');
+}
+
+async function getLiveEvents(q, location = DEFAULT_LOCATION, limit = 5) {
   try {
-    const response = await axios.post(
-      'https://api.openai.com/v1/embeddings',
-      {
-        input: 'quiero bailar salsa',
-        model: 'text-embedding-ada-002'
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        }
-      }
-    );
-
-    console.log('✅ Embedding generado:');
-    console.log(response.data);
-  } catch (error) {
-    console.error('❌ Error al conectar con OpenAI:', error.response?.data || error.message);
+    console.log('🔎 getLiveEvents:', { q, location, limit });
+    const params = { engine:'google_events', api_key:SERPAPI_KEY, q, location, hl:'es' };
+    const url    = `https://serpapi.com/search.json?${qs.stringify(params)}`;
+    const { data } = await axios.get(url);
+    console.log('📬 eventos recibidos:', data.events_results?.length);
+    if (!Array.isArray(data.events_results)) return [];
+    return data.events_results.slice(0, limit).map(ev => ({
+      title:       ev.title,
+      date:        ev.date,
+      description: ev.description,
+      venue:       ev.venue,
+      link:        ev.link,
+    }));
+  } catch (err) {
+    console.error('❌ Error en getLiveEvents:', err.message);
+    return [];
   }
 }
 
-testEmbedding();
+module.exports = { getLiveEvents };
