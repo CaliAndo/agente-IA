@@ -2,13 +2,14 @@
 require('dotenv').config();
 const express = require('express');
 const axios   = require('axios');
+const chrono  = require('chrono-node');
 const { getDetallePorFuente } = require('./services/db/getDetalle');
 const { getLiveEvents }       = require('./services/googleEvents');
 
 const app = express();
 app.use(express.json());
 
-// Health-check
+// Health‐check
 app.get('/', (_req, res) => res.status(200).send('🟢 CaliAndo Bot OK'));
 
 const PORT         = process.env.PORT || 3000;
@@ -59,13 +60,15 @@ function resetUser(from) {
 function startInactivity(from, reply) {
   clearTimers(from);
   inactTimers[from] = {
+    // Warning after 5 minutes
     warning: setTimeout(() => {
       reply('🔔 Sigo aquí si necesitas ayuda. ¿Quieres que te recomiende algo más?');
-    }, 60_000),
+    }, 5 * 60_000),
+    // Close 1 minute after warning (6 minutes total)
     close: setTimeout(() => {
       reply('🕒 Parece que no hubo respuesta. ¡CaliAndo se despide por ahora! Vuelve cuando quieras 👋');
       resetUser(from);
-    }, 120_000)
+    }, 6 * 60_000)
   };
 }
 
@@ -90,17 +93,14 @@ app.post('/webhook', async (req, res) => {
   clearTimers(from);
 
   try {
-    // 0) EVENTOS “EN VIVO” / “CERCANOS” / “HOY” / “FIN DE SEMANA”
-    const timeMatch = text.match(
-      /eventos?\s+(en vivo|cerca|hoy|manana|mañana|este fin de semana|finde)/
-    );
-    if (timeMatch) {
-      const when = timeMatch[1];
-      await reply(`🔍 Buscando eventos ${when}…`);
-      // Pasamos el filtro al query de SerpApi
-      const live = await getLiveEvents(`eventos ${when}`);
+    // 0) EVENTOS CON DETECCIÓN DE TIEMPO NATURAL (hoy, mañana, finde...)
+    const timeMatch = chrono.parse(text, new Date(), { forwardDate: true });
+    if (timeMatch.length) {
+      const whenText = timeMatch[0].text;
+      await reply(`🔍 Buscando eventos ${whenText}…`);
+      const live = await getLiveEvents(`eventos ${whenText}`);
       if (!live.length) {
-        await reply('😔 No encontré eventos para esa búsqueda.');
+        await reply('😔 No encontré eventos para ese periodo. Prueba otra frase.');
       } else {
         const list = live.map(ev =>
           `• *${ev.title}*\n` +
@@ -109,7 +109,7 @@ app.post('/webhook', async (req, res) => {
           (ev.description ? `  📝 ${ev.description}\n` : '') +
           `  🔗 ${ev.link}`
         ).join('\n\n');
-        await reply(`🎫 Aquí algunos eventos ${when}:\n\n${list}`);
+        await reply(`🎫 Aquí algunos eventos ${whenText}:\n\n${list}`);
       }
       startInactivity(from, reply);
       return res.sendStatus(200);
@@ -166,7 +166,7 @@ Estoy listo para ayudarte. 🇨🇴💃`
       return res.sendStatus(200);
     }
     if (sessionData[from]?.context === 'diccionario') {
-      // lógica de “ver mas”…  
+      // lógica de paginación “ver mas”
       return res.sendStatus(200);
     }
 
@@ -176,9 +176,10 @@ Estoy listo para ayudarte. 🇨🇴💃`
       if (text === 'ver mas') {
         cache.page = (cache.page || 0) + 1;
         const slice = cache.lista.slice(cache.page * 5, cache.page * 5 + 5);
+        const listTxt = slice.map(e => `• ${e.nombre}`).join('\n');
         await reply(
           slice.length
-            ? '🔎 Más recomendaciones:\n\n' + slice.map(e => `• ${e.nombre}`).join('\n') + '\n\nEscribe el NOMBRE del plan para ver detalles.'
+            ? `🔎 Más recomendaciones:\n\n${listTxt}\n\nEscribe el NOMBRE del plan para ver detalles.`
             : '📜 No hay más resultados.'
         );
         startInactivity(from, reply);
@@ -223,8 +224,8 @@ Estoy listo para ayudarte. 🇨🇴💃`
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
-    eventosCache[from]  = { lista: data.resultados, page: 0 };
-    sessionData[from]   = { context: 'resultados' };
+    eventosCache[from] = { lista: data.resultados, page: 0 };
+    sessionData[from]  = { context: 'resultados' };
     const primeros = data.resultados.slice(0, 5).map(e => `• ${e.nombre}`).join('\n');
     await reply(`🔎 Te recomiendo estos planes:\n\n${primeros}\n\nEscribe el NOMBRE del plan o "ver mas" para más.`);
     startInactivity(from, reply);

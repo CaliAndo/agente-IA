@@ -16,29 +16,31 @@ if (!SERPAPI_KEY) {
  * @param {number} [limit]    — cuántos resultados retornar (default 5)
  */
 async function getLiveEvents(q, location = DEFAULT_LOCATION, limit = 5) {
-  const params = {
-    engine:   'google_events',
-    api_key:  SERPAPI_KEY,
-    q:        q,
-    location: location,
-    hl:       'es',
-  };
+  try {
+    const params = {
+      engine:  'google_events',
+      api_key: SERPAPI_KEY,
+      q,
+      location,
+      hl:      'es',
+    };
+    const url  = `https://serpapi.com/search.json?${qs.stringify(params)}`;
+    const { data } = await axios.get(url);
 
-  const url = `https://serpapi.com/search.json?${qs.stringify(params)}`;
-  const { data } = await axios.get(url);
-
-  if (!data.events_results?.length) return [];
-
-  // Mapea resultados a un formato sencillo
-  return data.events_results
-    .slice(0, limit)
-    .map(ev => ({
-      title:       ev.title,
-      date:        ev.date,        // p.ej. "Sáb, 10 Mayo 2025"
-      description: ev.description, // resumen
-      venue:       ev.venue,       // lugar
-      link:        ev.link,        // URL al evento
-    }));
+    if (!Array.isArray(data.events_results)) return [];
+    return data.events_results
+      .slice(0, limit)
+      .map(ev => ({
+        title:       ev.title,
+        date:        ev.date,
+        description: ev.description,
+        venue:       ev.venue,
+        link:        ev.link,
+      }));
+  } catch (err) {
+    console.error('❌ Error en getLiveEvents:', err.message);
+    return [];
+  }
 }
 
 module.exports = { getLiveEvents };
