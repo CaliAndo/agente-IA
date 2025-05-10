@@ -126,7 +126,7 @@ app.post('/webhook', async (req, res) => {
         subset.map(ev => getDetallePorFuente(ev.fuente, ev.referencia_id))
       );
       const combinado = subset.map((ev, i) => ({
-        nombre:   ev.nombre,
+        nombre:    ev.nombre,
         precioStr: detalles[i]?.precio || '—',
         precioNum: parsePrice(detalles[i]?.precio)
       })).filter(x => !isNaN(x.precioNum));
@@ -134,12 +134,11 @@ app.post('/webhook', async (req, res) => {
       combinado.sort((a, b) =>
         asc ? a.precioNum - b.precioNum : b.precioNum - a.precioNum
       );
-      const top5 = combinado.slice(0, 5);
+      const top5   = combinado.slice(0, 5);
       const header = asc
         ? '💸 5 planes Civitatis más baratos:\n\n'
         : '💎 5 planes Civitatis más caros:\n\n';
-      const body = top5.map(x => `• ${x.nombre} (${x.precioStr})`).join('\n');
-      await reply(header + body);
+      await reply(header + top5.map(x => `• ${x.nombre} (${x.precioStr})`).join('\n'));
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
@@ -166,7 +165,6 @@ Estoy listo para ayudarte. 🇨🇴💃`
       return res.sendStatus(200);
     }
     if (sessionData[from]?.context === 'diccionario') {
-      // lógica de paginación “ver mas”
       return res.sendStatus(200);
     }
 
@@ -176,10 +174,9 @@ Estoy listo para ayudarte. 🇨🇴💃`
       if (text === 'ver mas') {
         cache.page = (cache.page || 0) + 1;
         const slice = cache.lista.slice(cache.page * 5, cache.page * 5 + 5);
-        const listTxt = slice.map(e => `• ${e.nombre}`).join('\n');
         await reply(
           slice.length
-            ? `🔎 Más recomendaciones:\n\n${listTxt}\n\nEscribe el NOMBRE del plan para ver detalles.`
+            ? `🔎 Más recomendaciones:\n\n${slice.map(e => `• ${e.nombre}`).join('\n')}\n\nEscribe el NOMBRE del plan para ver detalles.`
             : '📜 No hay más resultados.'
         );
         startInactivity(from, reply);
