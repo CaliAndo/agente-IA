@@ -24,12 +24,44 @@ const eventosCache = {}; // { from: { lista, page } }
 const inactTimers  = {}; // { from: { warning, close } }
 
 // ——— Helpers ———
-function sendMessage(to, text) {
-  return axios.post(
+async function sendText(to, text) {
+  await axios.post(
     `https://graph.facebook.com/v18.0/${PHONE_ID}/messages`,
     { messaging_product: 'whatsapp', to, text: { body: text } },
     { headers: { Authorization: `Bearer ${WHATSAPP_TKN}` } }
-  ).catch(console.error);
+  );
+}
+
+async function sendWelcomeButtons(to) {
+  await axios.post(
+    `https://graph.facebook.com/v18.0/${PHONE_ID}/messages`,
+    {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'interactive',
+      interactive: {
+        type: 'button',
+        header: { type: 'text', text: '👋 ¡Hola!' },
+        body: {
+          text: 'Soy *CaliAndo*, tu guía de planes en Cali.\n\n' +
+                'Elige una opción para empezar:'
+        },
+        action: {
+          buttons: [
+            {
+              type: 'reply',
+              reply: { id: 'EVENTOS_HOY', title: 'Eventos hoy' }
+            },
+            {
+              type: 'reply',
+              reply: { id: 'PLAN_RECOMENDADO', title: 'Recomiéndame un plan' }
+            }
+          ]
+        }
+      }
+    },
+    { headers: { Authorization: `Bearer ${WHATSAPP_TKN}` } }
+  );
 }
 
 function normalize(str) {
@@ -57,14 +89,14 @@ function resetUser(from) {
   clearTimers(from);
 }
 
-function startInactivity(from, reply) {
+function startInactivity(from, replyFn) {
   clearTimers(from);
   inactTimers[from] = {
     warning: setTimeout(() => {
-      reply('🔔 Sigo aquí si necesitas ayuda. ¿Quieres que te recomiende algo más?');
+      replyFn('🔔 Sigo aquí si necesitas ayuda. ¿Quieres que te recomiende algo más?');
     }, 5 * 60_000),    // 5 minutos
     close:   setTimeout(() => {
-      reply('🕒 Parece que no hubo respuesta. ¡CaliAndo se despide por ahora! Vuelve cuando quieras 👋');
+      replyFn('🕒 Parece que no hubo respuesta. ¡CaliAndo se despide por ahora! Vuelve cuando quieras 👋');
       resetUser(from);
     }, 6 * 60_000)     // 6 minutos total
   };
@@ -81,20 +113,31 @@ function parsePrice(str) {
 
 // ——— Webhook ———
 app.post('/webhook', async (req, res) => {
-  const msg = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
-  if (!msg || msg.type !== 'text') return res.sendStatus(200);
+  const entry = req.body.entry?.[0]?.changes?.[0]?.value;
+  const msg   = entry?.messages?.[0];
+  if (!msg) return res.sendStatus(200);
 
-  const from  = msg.from;
-  const text  = normalize(msg.text.body);
-  const reply = txt => sendMessage(from, txt);
-
+  const from = msg.from;
   clearTimers(from);
 
+  // Determinar texto de usuario, contemplando botones
+  let text = '';
+  if (msg.type === 'text') {
+    text = normalize(msg.text.body);
+  } else if (msg.type === 'button') {
+    // quick-reply button
+    text = normalize(msg.button.payload); 
+  } else {
+    return res.sendStatus(200);
+  }
+
+  const reply = txt => sendText(from, txt);
+
   try {
-    // 0) EVENTOS (detección de tiempo natural + keyword “evento”)
+    // 0) EVENTOS (detecta “evento(s)” + periodo temporal)
     const timeMatch = chrono.parse(text, new Date(), { forwardDate: true });
-    if (timeMatch.length && /\beventos?\b/.test(text)) {
-      const whenText = timeMatch[0].text; // “hoy”, “mañana”, “este fin de semana”, etc.
+    if ((/eventos?/.test(text)) && timeMatch.length) {
+      const whenText = timeMatch[0].text;
       await reply(`🔍 Buscando eventos ${whenText}…`);
       const live = await getLiveEvents(`eventos ${whenText}`);
       if (!live.length) {
@@ -142,17 +185,11 @@ app.post('/webhook', async (req, res) => {
       return res.sendStatus(200);
     }
 
-    // 2) SALUDOS
+    // 2) SALUDOS y botones
     const SALUDOS = ['hola','buenas','hey','holi','buenas tardes','buenos días'];
-    if (SALUDOS.some(w => text.includes(w))) {
+    if (SALUDOS.some(w => text.includes(w)) || text === 'eventos_hoy' || text === 'plan_recomendado') {
       resetUser(from);
-      await reply(
-`👋 ¡Hola! Soy *CaliAndo*, tu guía de planes en Cali.
-Escríbeme lo que quieras: un plan, un término caleño, o incluso el nombre de un evento para ver detalles.
-Estoy listo para ayudarte. 🇨🇴💃`
-      );
-      startInactivity(from, reply);
-      return res.sendStatus(200);
+      return sendWelcomeButtons(from).then(() => res.sendStatus(200));
     }
 
     // 3) DICCIONARIO
@@ -176,8 +213,8 @@ Estoy listo para ayudarte. 🇨🇴💃`
         const slice = cacheObj.lista.slice(cacheObj.page * 5, cacheObj.page * 5 + 5);
         await reply(
           slice.length
-            ? '🔎 Más recomendaciones:\n\n' + slice.map(e => `• ${e.nombre}`).join('\n')
-              + '\n\nEscribe el NOMBRE del plan para ver detalles.'
+            ? '🔎 Más recomendaciones:\n\n' + slice.map(e => `• ${e.nombre}`).join('\n') +
+              '\n\nEscribe el NOMBRE del plan para ver detalles.'
             : '📜 No hay más resultados.'
         );
         startInactivity(from, reply);
@@ -231,7 +268,7 @@ Estoy listo para ayudarte. 🇨🇴💃`
 
   } catch (err) {
     console.error('💥 Error en webhook:', err);
-    await reply('❌ Ocurrió un error. Intenta más tarde.');
+    await sendText(from, '❌ Ocurrió un error. Intenta más tarde.');
     return res.sendStatus(500);
   }
 });
