@@ -3,8 +3,8 @@ require('dotenv').config();
 const express = require('express');
 const axios   = require('axios');
 const chrono  = require('chrono-node');
-const { getDetallePorFuente } = require('./services/db/getDetalle');
-const { getLiveEvents }       = require('./services/googleEvents');
+const { getDetallePorFuente } = require('./services/db/getDetallePorFuente');
+const { getLiveEvents }       = require('./services/serpAPI/googleEvents');
 
 const app = express();
 app.use(express.json());
@@ -19,9 +19,9 @@ const FASTAPI_URL  = process.env.FASTAPI_URL;
 if (!FASTAPI_URL) throw new Error("🚨 FASTAPI_URL no está definida");
 
 // — Estado por usuario —
-const sessionData  = {}; // { from: { context, dictPages?, dictPageIdx? } }
-const eventosCache = {}; // { from: { lista, page } }
-const inactTimers  = {}; // { from: { warning, close } }
+const sessionData  = {};
+const eventosCache = {};
+const inactTimers  = {};
 
 // — Helpers —
 async function sendText(to, text) {
@@ -123,8 +123,13 @@ app.post('/webhook', async (req, res) => {
   if (msg.type === 'text') {
     text = normalize(msg.text.body);
     console.log('🔠 Texto normalizado:', text);
-  } else if (msg.type === 'button') {
-    text = msg.button.payload;
+  } else if (
+    msg.type === 'button' ||
+    (msg.type === 'interactive' && msg.interactive?.type === 'button_reply')
+  ) {
+    // botón rápido llega como interactive.button_reply
+    const payload = msg.button?.payload || msg.interactive.button_reply.id;
+    text = payload;
     console.log('🔘 Payload de botón:', text);
   } else {
     console.log('⚠️ Tipo no soportado:', msg.type);
@@ -212,7 +217,6 @@ Estoy listo para ayudarte. 🇨🇴💃`
     }
     if (sessionData[from]?.context === 'diccionario') {
       console.log('➡️ Dentro de DICCIONARIO, esperando "ver mas"');
-      // paginación “ver mas”…
       return res.sendStatus(200);
     }
 
