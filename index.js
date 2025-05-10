@@ -32,7 +32,8 @@ async function sendText(to, text) {
   );
 }
 
-async function sendWelcomeButtons(to) {
+// botón único para buscar eventos hoy
+async function sendEventButton(to) {
   await axios.post(
     `https://graph.facebook.com/v18.0/${PHONE_ID}/messages`,
     {
@@ -41,20 +42,15 @@ async function sendWelcomeButtons(to) {
       type: 'interactive',
       interactive: {
         type: 'button',
-        header: { type: 'text', text: '👋 ¡Hola!' },
+        header: { type: 'text', text: '🎫 Eventos para hoy' },
         body: {
-          text: 'Soy *CaliAndo*, tu guía de planes en Cali.\n\n' +
-                'Elige una opción para empezar:'
+          text: 'Pulsa para ver los eventos en vivo o cercanos de hoy'
         },
         action: {
           buttons: [
             {
               type: 'reply',
-              reply: { id: 'EVENTOS_HOY', title: 'Eventos hoy' }
-            },
-            {
-              type: 'reply',
-              reply: { id: 'PLAN_RECOMENDADO', title: 'Recomiéndame un plan' }
+              reply: { id: 'EVENTOS_HOY', title: 'Buscar eventos hoy' }
             }
           ]
         }
@@ -94,15 +90,14 @@ function startInactivity(from, replyFn) {
   inactTimers[from] = {
     warning: setTimeout(() => {
       replyFn('🔔 Sigo aquí si necesitas ayuda. ¿Quieres que te recomiende algo más?');
-    }, 5 * 60_000),    // 5 minutos
-    close:   setTimeout(() => {
-      replyFn('🕒 Parece que no hubo respuesta. ¡CaliAndo se despide por ahora! Vuelve cuando quieras 👋');
+    }, 5 * 60_000),
+    close: setTimeout(() => {
+      replyFn('🕒 Parece que no hubo respuesta. CaliAndo se despide. ¡Vuelve cuando quieras! 👋');
       resetUser(from);
-    }, 6 * 60_000)     // 6 minutos total
+    }, 6 * 60_000)
   };
 }
 
-// Convierte un texto de precio a número
 function parsePrice(str) {
   if (!str) return Infinity;
   const s = str.toLowerCase();
@@ -117,16 +112,15 @@ app.post('/webhook', async (req, res) => {
   const msg   = entry?.messages?.[0];
   if (!msg) return res.sendStatus(200);
 
-  const from = msg.from;
+  const from  = msg.from;
   clearTimers(from);
 
-  // Determinar texto de usuario, contemplando botones
+  // determinamos texto: normal o payload de botón
   let text = '';
   if (msg.type === 'text') {
     text = normalize(msg.text.body);
   } else if (msg.type === 'button') {
-    // quick-reply button
-    text = normalize(msg.button.payload); 
+    text = msg.button.payload; // 'EVENTOS_HOY'
   } else {
     return res.sendStatus(200);
   }
@@ -134,14 +128,12 @@ app.post('/webhook', async (req, res) => {
   const reply = txt => sendText(from, txt);
 
   try {
-    // 0) EVENTOS (detecta “evento(s)” + periodo temporal)
-    const timeMatch = chrono.parse(text, new Date(), { forwardDate: true });
-    if ((/eventos?/.test(text)) && timeMatch.length) {
-      const whenText = timeMatch[0].text;
-      await reply(`🔍 Buscando eventos ${whenText}…`);
-      const live = await getLiveEvents(`eventos ${whenText}`);
+    // 🍿 BOTÓN “Buscar eventos hoy”
+    if (text === 'EVENTOS_HOY') {
+      await reply('🔍 Buscando eventos de hoy…');
+      const live = await getLiveEvents('eventos hoy');
       if (!live.length) {
-        await reply('😔 No encontré eventos para ese periodo. Prueba otra frase.');
+        await reply('😔 No encontré eventos para hoy. Prueba más tarde.');
       } else {
         const list = live.map(ev =>
           `• *${ev.title}*\n` +
@@ -150,14 +142,14 @@ app.post('/webhook', async (req, res) => {
           (ev.description ? `  📝 ${ev.description}\n` : '') +
           `  🔗 ${ev.link}`
         ).join('\n\n');
-        await reply(`🎫 Aquí algunos eventos ${whenText}:\n\n${list}`);
+        await reply(`🎫 Aquí los eventos de hoy:\n\n${list}`);
       }
       resetUser(from);
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
 
-    // 1) FILTRADO “más barato(s)” / “más caro(s)”
+    // 1) Filtrado de precio
     if (
       sessionData[from]?.context === 'resultados' &&
       (/(mas\s+barat[oa]s?|más\s+barat[oa]s?)/.test(text) ||
@@ -185,14 +177,23 @@ app.post('/webhook', async (req, res) => {
       return res.sendStatus(200);
     }
 
-    // 2) SALUDOS y botones
+    // 2) Saludo inicial
     const SALUDOS = ['hola','buenas','hey','holi','buenas tardes','buenos días'];
-    if (SALUDOS.some(w => text.includes(w)) || text === 'eventos_hoy' || text === 'plan_recomendado') {
+    if (SALUDOS.some(w => text.includes(w))) {
       resetUser(from);
-      return sendWelcomeButtons(from).then(() => res.sendStatus(200));
+      // saludo original
+      await reply(
+`👋 ¡Hola! Soy *CaliAndo*, tu guía de planes en Cali.
+Escríbeme lo que quieras: un plan, un término caleño o incluso el nombre de un evento para ver detalles.
+Estoy listo para ayudarte. 🇨🇴💃`
+      );
+      // botón único
+      await sendEventButton(from);
+      startInactivity(from, reply);
+      return res.sendStatus(200);
     }
 
-    // 3) DICCIONARIO
+    // 3) Diccionario
     if (text.startsWith('diccionario')) {
       resetUser(from);
       sessionData[from].context = 'diccionario';
@@ -201,11 +202,11 @@ app.post('/webhook', async (req, res) => {
       return res.sendStatus(200);
     }
     if (sessionData[from]?.context === 'diccionario') {
-      // paginación “ver mas”
+      // paginación “ver mas”…
       return res.sendStatus(200);
     }
 
-    // 4) SELECCIÓN POR NOMBRE
+    // 4) Selección por nombre
     if (sessionData[from]?.context === 'resultados') {
       const cacheObj = eventosCache[from];
       if (text === 'ver mas') {
@@ -249,7 +250,7 @@ app.post('/webhook', async (req, res) => {
       return res.sendStatus(200);
     }
 
-    // 5) BÚSQUEDA SEMÁNTICA
+    // 5) Búsqueda semántica
     const { data } = await axios.post(
       `${FASTAPI_URL}/buscar-coincidencia`,
       { texto: text, fuente: 'whatsapp', nombre: 'CaliAndo' }
