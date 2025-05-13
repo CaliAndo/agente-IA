@@ -152,7 +152,7 @@ app.post('/webhook', async (req, res) => {
     if (GREET.some(w => text.includes(w))) {
       resetUser(from);
       await sendButtons(from,
-        '👋 ¡Hola! ¿Qué te interesa hoy?',
+        '¡Hola! Soy CaliAndo y estoy aquí para ayudarte a descubrir lo mejor de Cali. Cuéntame qué te gustaría hacer hoy: ¿te antoja algo cultural, quieres parchar con amigos o recorrer lugares nuevos? Estoy listo para mostrarte lo que esta ciudad sabrosa tiene para ti 🇨🇴💃',
         [
           { id:'VER_EVENTOS', title:'Ver eventos en vivo' },
           { id:'DICCIONARIO', title:'Abrir diccionario' }
