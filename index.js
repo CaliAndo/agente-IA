@@ -3,7 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const axios   = require('axios');
 const { getDetallePorFuente }   = require('./services/db/getDetalle');
-const { getLiveEvents }         = require('./services/serpAPI/googleEvents');
+const { getLiveEvents }         = require('./services/googleEvents');
 const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
 
 const app = express();
