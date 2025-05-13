@@ -2,6 +2,15 @@
 require('dotenv').config();
 const express = require('express');
 const axios   = require('axios');
+
+const FOOD_TERMS = [
+  'comida', 'comer', 'culinario',
+  'restaurante', 'restaurantes', 'barcito','almuerzo', 'cena', 'desayuno', 'aperitivo',
+  'pizzería', 'pizza', 'hamburguesa', 'antojito',
+  'taco', 'postre', 'helado',
+  'bebida','vino', 'foodtruck',
+  'antojitos', 'snack', 'degustación'
+];
 const { getDetallePorFuente }   = require('./services/db/getDetalle');
 const { getLiveEvents }         = require('./services/googleEvents');
 const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
@@ -155,7 +164,7 @@ app.post('/webhook', async (req, res) => {
 
   try {
     // 0.5) Filtrado de comida/restaurantes
-    if (/(comida|restaurante|bar|almuerz|cenar|desayuno|pizzeri|hamburguesa)/.test(text)) {
+    if (FOOD_TERMS.some(term => text.includes(term))) {
       await reply(
         '😔 Lo siento, CaliAndo no ofrece recomendaciones de comida. ' +
         'Pero puedo sugerirte paseos culturales, museos o actividades al aire libre. ' +
