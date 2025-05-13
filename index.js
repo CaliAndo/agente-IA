@@ -9,7 +9,7 @@ const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
 const app = express();
 app.use(express.json());
 
-// Health‐check
+// Health-check
 app.get('/', (_req, res) => res.send('🟢 CaliAndo Bot OK'));
 
 const PORT         = process.env.PORT || 3000;
@@ -21,9 +21,10 @@ if (!FASTAPI_URL) throw new Error('🚨 FASTAPI_URL no está definida');
 // — State —
 const sessionData  = {}; // { from: { context, dictPages?, dictPageIdx? } }
 const eventosCache = {}; // { from: { lista, page } }
-const inactTimers  = {}; // inactivity timers
+const inactTimers  = {}; // { from: { warning1, warning2, close } }
 
 // — Helpers —
+
 // envía texto simple
 function sendText(to, text) {
   return axios.post(
@@ -32,6 +33,7 @@ function sendText(to, text) {
     { headers:{ Authorization:`Bearer ${WHATSAPP_TKN}` } }
   );
 }
+
 // envía botones interactivos
 function sendButtons(to, bodyText, buttons) {
   const payload = {
@@ -66,7 +68,8 @@ function normalize(str) {
 function clearTimers(from) {
   const t = inactTimers[from];
   if (t) {
-    clearTimeout(t.warning);
+    clearTimeout(t.warning1);
+    clearTimeout(t.warning2);
     clearTimeout(t.close);
     delete inactTimers[from];
   }
@@ -82,14 +85,20 @@ function resetUser(from) {
 
 function startInactivity(from, reply) {
   clearTimers(from);
+  // warning1 at 5 min
   inactTimers[from] = {
-    warning: setTimeout(() => {
+    warning1: setTimeout(() => {
       reply('🔔 Sigo aquí si necesitas ayuda. ¿Quieres que te recomiende algo más?');
-    }, 60_000),
+    }, 5 * 60_000),
+    // warning2 at 6 min
+    warning2: setTimeout(() => {
+      reply('🔔 Todavía estoy aquí para lo que necesites.');
+    }, 6 * 60_000),
+    // close at 7 min
     close: setTimeout(() => {
-      reply('🕒 Parece que no hubo respuesta. ¡CaliAndo se despide! Vuelve cuando quieras 👋');
+      reply('🕒 Parece que no hubo respuesta. ¡CaliAndo se despide por ahora! Vuelve cuando quieras 👋');
       resetUser(from);
-    }, 120_000)
+    }, 7 * 60_000)
   };
 }
 
@@ -110,11 +119,10 @@ app.post('/webhook', async (req, res) => {
   const reply = txt => sendText(from, txt);
   clearTimers(from);
 
-  // 0) Manejo de botones interactivos
+  // 0) Botones interactivos
   if (msg.type === 'interactive' && msg.interactive.type === 'button_reply') {
     const id = msg.interactive.button_reply.id;
     if (id === 'VER_EVENTOS') {
-      // Botón: Ver eventos en vivo
       await reply('🔍 Buscando eventos en vivo…');
       const list = await getLiveEvents('eventos en vivo');
       if (!list.length) {
@@ -133,7 +141,6 @@ app.post('/webhook', async (req, res) => {
       return res.sendStatus(200);
     }
     if (id === 'DICCIONARIO') {
-      // Botón: Abrir diccionario
       resetUser(from);
       sessionData[from].context = 'diccionario';
       await reply('📚 Entraste al *diccionario caleño*. Escríbeme la palabra que quieras consultar.');
@@ -142,17 +149,29 @@ app.post('/webhook', async (req, res) => {
     }
   }
 
-  // seguimos solo si es texto
+  // solo texto
   if (msg.type !== 'text') return res.sendStatus(200);
   const text = normalize(msg.text.body);
 
   try {
+    // 0.5) Filtrado de comida/restaurantes
+    if (/(comida|restaurante|bar|almuerz|cenar|desayuno|pizzeri|hamburguesa)/.test(text)) {
+      await reply(
+        '😔 Lo siento, CaliAndo no ofrece recomendaciones de comida. ' +
+        'Pero puedo sugerirte paseos culturales, museos o actividades al aire libre. ' +
+        '¿Te interesa algo así?'
+      );
+      startInactivity(from, reply);
+      return res.sendStatus(200);
+    }
+
     // 1) Saludos → menú de botones
     const GREET = ['hola','buenas','hey','holi','buenos días','buenas tardes'];
     if (GREET.some(w => text.includes(w))) {
       resetUser(from);
-      await sendButtons(from,
-        '¡Hola! Soy CaliAndo y estoy aquí para ayudarte a descubrir lo mejor de Cali. Cuéntame qué te gustaría hacer hoy: ¿te antoja algo cultural, quieres parchar con amigos o recorrer lugares nuevos? Estoy listo para mostrarte lo que esta ciudad sabrosa tiene para ti 🇨🇴💃',
+      await sendButtons(
+        from,
+        '👋 ¡Hola! ¿Qué te interesa hoy? Puedo mostrarte eventos en vivo o abrir el diccionario caleño.',
         [
           { id:'VER_EVENTOS', title:'Ver eventos en vivo' },
           { id:'DICCIONARIO', title:'Abrir diccionario' }
@@ -162,9 +181,8 @@ app.post('/webhook', async (req, res) => {
       return res.sendStatus(200);
     }
 
-    // 2) Diccionario (corrección: nuevas búsquedas siempre abiertas)
+    // 2) Diccionario
     if (text.startsWith('diccionario') || sessionData[from]?.context === 'diccionario') {
-      // si escribe "diccionario", inicializamos
       if (text.startsWith('diccionario')) {
         resetUser(from);
         sessionData[from].context    = 'diccionario';
@@ -174,21 +192,19 @@ app.post('/webhook', async (req, res) => {
         startInactivity(from, reply);
         return res.sendStatus(200);
       }
-      // ver más páginas
       if (text === 'ver mas' && Array.isArray(sessionData[from].dictPages)) {
         const idx   = sessionData[from].dictPageIdx + 1;
         const pages = sessionData[from].dictPages;
         if (idx < pages.length) {
           sessionData[from].dictPageIdx = idx;
           await reply(pages[idx]);
-          if (idx < pages.length - 1) await reply('💡 Envía "ver mas" para más...');
+          if (idx < pages.length - 1) await reply('💡 Envía "ver mas" para continuar...');
         } else {
           await reply('📜 Ya no hay más páginas.');
         }
         startInactivity(from, reply);
         return res.sendStatus(200);
       }
-      // nueva consulta
       const meaning = await getMeaningFromSerpAPI(text);
       if (!meaning) {
         await reply(`😔 No encontré el significado de *${text}*.`);
@@ -227,53 +243,49 @@ app.post('/webhook', async (req, res) => {
       return res.sendStatus(200);
     }
 
-    // 4) Filtrado más baratos/caros tras resultados
+    // 4) Filtrado más baratos/caros
     if (sessionData[from]?.context === 'resultados' &&
        (/(mas\s+barat[oa]s?|más\s+barat[oa]s?)/.test(text) ||
         /(mas\s+car[oa]s?|más\s+car[oa]s?)/.test(text))
     ) {
-      const subset = eventosCache[from].lista.filter(e=>e.fuente==='civitatis');
+      const subset = eventosCache[from].lista.filter(e => e.fuente === 'civitatis');
       const detalles = await Promise.all(
-        subset.map(e=>getDetallePorFuente(e.fuente,e.referencia_id))
+        subset.map(e => getDetallePorFuente(e.fuente, e.referencia_id))
       );
-      const combinado = subset.map((e,i)=>({
+      const combinado = subset.map((e, i) => ({
         nombre:    e.nombre,
         precioStr: detalles[i]?.precio || '—',
         precioNum: parsePrice(detalles[i]?.precio)
-      })).filter(x=>!isNaN(x.precioNum));
+      })).filter(x => !isNaN(x.precioNum));
       const asc = /(barat[oa])/.test(text);
-      combinado.sort((a,b)=> asc? a.precioNum-b.precioNum : b.precioNum-a.precioNum);
-      const top5 = combinado.slice(0,5);
+      combinado.sort((a, b) => asc ? a.precioNum - b.precioNum : b.precioNum - a.precioNum);
+      const top5 = combinado.slice(0, 5);
       const header = asc
         ? '💸 5 planes más baratos:\n\n'
         : '💎 5 planes más caros:\n\n';
-      const body = top5.map(x=>`• ${x.nombre} (${x.precioStr})`).join('\n');
+      const body = top5.map(x => `• ${x.nombre} (${x.precioStr})`).join('\n');
       await reply(header + body);
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
 
-    // 5) Selección o nueva búsqueda tras resultados (corrección)
+    // 5) Selección o nueva búsqueda
     if (sessionData[from]?.context === 'resultados') {
       const cache = eventosCache[from];
-
-      // paginar
       if (text === 'ver mas') {
-        cache.page = (cache.page||0) + 1;
-        const slice = cache.lista.slice(cache.page*5, cache.page*5+5);
+        cache.page = (cache.page || 0) + 1;
+        const slice = cache.lista.slice(cache.page * 5, cache.page * 5 + 5);
         await reply(
           slice.length
             ? '🔎 Más recomendaciones:\n\n' +
-              slice.map(e=>`• ${e.nombre}`).join('\n') +
-              '\n\nEscribe el nombre o "ver mas" para más.'
+              slice.map(e => `• ${e.nombre}`).join('\n') +
+              '\n\nEscribe el nombre o "ver mas".'
             : '📜 No hay más resultados.'
         );
         startInactivity(from, reply);
         return res.sendStatus(200);
       }
-
-      // intentar selección por nombre
-      const elegido = cache.lista.find(ev=>{
+      const elegido = cache.lista.find(ev => {
         const nm = normalize(ev.nombre);
         return text.includes(nm) || nm.includes(text);
       });
@@ -293,8 +305,7 @@ app.post('/webhook', async (req, res) => {
         startInactivity(from, reply);
         return res.sendStatus(200);
       }
-
-      // sino, nueva búsqueda semántica
+      // nueva búsqueda semántica
       const { data } = await axios.post(
         `${FASTAPI_URL}/buscar-coincidencia`,
         { texto: text, fuente:'whatsapp', nombre:'CaliAndo' }
@@ -302,11 +313,11 @@ app.post('/webhook', async (req, res) => {
       if (!data.ok || !data.resultados.length) {
         await reply('😔 No encontré nada con esa frase. Prueba otra.');
       } else {
-        eventosCache[from] = { lista:data.resultados, page:0 };
-        const primeros = data.resultados.slice(0,5).map(e=>`• ${e.nombre}`).join('\n');
+        eventosCache[from] = { lista: data.resultados, page: 0 };
+        const primeros = data.resultados.slice(0,5).map(e => `• ${e.nombre}`).join('\n');
         await reply(
           `🔎 Te recomiendo estos planes:\n\n${primeros}\n\n` +
-          `Escribe el nombre o "ver mas" para más.`
+          `Escribe el nombre o "ver mas".`
         );
       }
       startInactivity(from, reply);
@@ -323,12 +334,12 @@ app.post('/webhook', async (req, res) => {
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
-    eventosCache[from] = { lista:data.resultados, page:0 };
+    eventosCache[from] = { lista: data.resultados, page: 0 };
     sessionData[from]  = { context:'resultados' };
-    const primeros = data.resultados.slice(0,5).map(e=>`• ${e.nombre}`).join('\n');
+    const primeros = data.resultados.slice(0,5).map(e => `• ${e.nombre}`).join('\n');
     await reply(
       `🔎 Te recomiendo estos planes:\n\n${primeros}\n\n` +
-      `Escribe el nombre o "ver mas" para más.`
+      `Escribe el nombre o "ver mas".`
     );
     startInactivity(from, reply);
     return res.sendStatus(200);
