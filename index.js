@@ -171,7 +171,7 @@ app.post('/webhook', async (req, res) => {
       resetUser(from);
       await sendButtons(
         from,
-        '👋 ¡Hola! ¿Qué te interesa hoy? Puedo mostrarte eventos en vivo o abrir el diccionario caleño.',
+        '¡Hola! Soy CaliAndo y estoy aquí para ayudarte a descubrir lo mejor de Cali. Cuéntame qué te gustaría hacer hoy: ¿te antoja algo cultural, quieres parchar con amigos o recorrer lugares nuevos? Estoy listo para mostrarte lo que esta ciudad sabrosa tiene para ti 🇨🇴💃',
         [
           { id:'VER_EVENTOS', title:'Ver eventos en vivo' },
           { id:'DICCIONARIO', title:'Abrir diccionario' }
