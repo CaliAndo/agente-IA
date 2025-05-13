@@ -34,20 +34,26 @@ function sendText(to, text) {
 }
 // envía botones interactivos
 function sendButtons(to, bodyText, buttons) {
-  const interactive = {
-    type: 'button',
-    body: { text: bodyText },
-    action: {
-      buttons: buttons.map(b => ({
-        type: 'reply',
-        reply: { id: b.id, title: b.title }
-      }))
+  const payload = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'interactive',               
+    interactive: {
+      type: 'button',
+      body: { text: bodyText },
+      action: {
+        buttons: buttons.map(b => ({
+          type: 'reply',
+          reply: { id: b.id, title: b.title }
+        }))
+      }
     }
   };
+
   return axios.post(
     `https://graph.facebook.com/v18.0/${PHONE_ID}/messages`,
-    { messaging_product:'whatsapp', to, interactive },
-    { headers:{ Authorization:`Bearer ${WHATSAPP_TKN}` } }
+    payload,
+    { headers: { Authorization: `Bearer ${WHATSAPP_TKN}` } }
   );
 }
 
