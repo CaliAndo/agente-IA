@@ -1,33 +1,37 @@
-const axios = require('axios');
-const qs    = require('querystring');
+// test-gemini.js  (CommonJS puro)
+const apiKey = "AIzaSyBB8-XXLbQs91ZBU0-XfMzdw2HKkxbtGJE";
 
-const SERPAPI_KEY      = process.env.SERPAPI_KEY;
-// Fallback a "Cali, Colombia" si no lo defines en .env
-const DEFAULT_LOCATION = process.env.DEFAULT_EVENT_LOCATION || 'Cali, Colombia';
-
-if (!SERPAPI_KEY) {
-  throw new Error('🚨 Define SERPAPI_KEY en tu .env');
+if (!apiKey) {
+  console.error("❌ Falta GEMINI_API_KEY en tus variables de entorno.");
+  process.exit(1);
 }
 
-async function getLiveEvents(q, location = DEFAULT_LOCATION, limit = 5) {
+async function askGemini(prompt) {
+  const url =
+    "https://generativelanguage.googleapis.com/v1beta/models/" +
+    "gemini-2.0-flash:generateContent?key=" + apiKey;
+
+  const body = {
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { maxOutputTokens: 120, temperature: 0.7 }
+  };
+
+  const res = await fetch(url, {                       // 👈 fetch global
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+}
+
+(async () => {
   try {
-    console.log('🔎 getLiveEvents:', { q, location, limit });
-    const params = { engine:'google_events', api_key:SERPAPI_KEY, q, location, hl:'es' };
-    const url    = `https://serpapi.com/search.json?${qs.stringify(params)}`;
-    const { data } = await axios.get(url);
-    console.log('📬 eventos recibidos:', data.events_results?.length);
-    if (!Array.isArray(data.events_results)) return [];
-    return data.events_results.slice(0, limit).map(ev => ({
-      title:       ev.title,
-      date:        ev.date,
-      description: ev.description,
-      venue:       ev.venue,
-      link:        ev.link,
-    }));
+    const reply = await askGemini("Dame dos planes al aire libre en Cali, Colombia.");
+    console.log("✅ Respuesta de Gemini:\n", reply);
   } catch (err) {
-    console.error('❌ Error en getLiveEvents:', err.message);
-    return [];
+    console.error("❌ Ocurrió un problema:", err.message);
   }
-}
-
-module.exports = { getLiveEvents };
+})();
