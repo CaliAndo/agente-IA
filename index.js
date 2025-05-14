@@ -14,7 +14,7 @@ const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
 // Gemini Flash – enriquecedor de respuestas humanizadas
 // ───────────────────────────────────────────────────────────────────────────────
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
-if (!GEMINI_KEY) throw new Error('🚨 Falta GEMINI_API_KEY en .env');
+
 
 /**
  * Envía snippets + pregunta a Gemini Flash y devuelve respuesta pulida.
