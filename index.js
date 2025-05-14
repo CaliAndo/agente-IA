@@ -11,37 +11,38 @@ const { getLiveEvents }         = require('./services/googleEvents');
 const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
 
 // ───────────────────────────────────────────────────────────────────────────────
-// Gemini Flash – enriquecedor de respuestas humanizadas
+// Gemini Flash – enriquecedor de respuestas humanizadas con metadatos
 // ───────────────────────────────────────────────────────────────────────────────
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
-console.log('GEMINI_API_KEY:', process.env.GEMINI_API_KEY);
-
 
 /**
- * Envía snippets + pregunta a Gemini Flash y devuelve respuesta pulida.
- * @param {string} userMsg - Pregunta original del usuario
- * @param {Array<{texto:string, score:number}>} docs - Top-k snippets contextuales
- * @returns {Promise<string>} - Texto enriquecido
+ * Envía snippets + pregunta a Gemini Flash y devuelve respuesta enriquecida.
+ * @param {string} userMsg - Pregunta original
+ * @param {Array<{texto:string, score:number, link?:string, date?:string, venue?:string}>} docs
+ * @returns {Promise<string>}
  */
 async function enrichAnswer(userMsg, docs) {
-  // Construir contexto
-  const ctx = docs.map((d, i) =>
-    `Doc ${i + 1} (score ${d.score.toFixed(2)}): ${d.texto.slice(0, 350)}`
-  ).join('\n\n');
+  const ctx = docs.map((d, i) => {
+    let base = `Doc ${i + 1} (score ${d.score.toFixed(2)}): ${d.texto.slice(0, 300)}`;
+    if (d.date)  base += ` | Fecha: ${d.date}`;
+    if (d.venue) base += ` | Lugar: ${d.venue}`;
+    if (d.link)  base += ` | Más info: ${d.link}`;
+    return base;
+  }).join("\n\n");
 
-  // Prompt para Gemini Flash
   const prompt = `
 Eres *CaliAndo*, un asistente caleño cercano.
-Objetivo: responder la pregunta del usuario usando SOLO la info del contexto.
+Usa la información del contexto y sus metadatos para responder.
 Reglas:
-• ≤180 palabras.
-• Tono amistoso, 1-2 emojis máx.
-• Si el contexto no basta, dilo brevemente y sugiere volver a preguntar.
+• ≤200 palabras.
+• Incluye la fecha, lugar o enlace cuando corresponda.
+• Tono amistoso, 1-2 emojis.
+• Si falta contexto, dilo breve y sugiere preguntar de nuevo.
 
 Pregunta:
 "${userMsg}"
 
-Contexto:
+Contexto con metadatos:
 ${ctx}
 `.trim();
 
@@ -51,7 +52,7 @@ ${ctx}
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 220, temperature: 0.75, topP: 0.9 }
+      generationConfig: { maxOutputTokens: 250, temperature: 0.7, topP: 0.9 }
     })
   });
   if (!res.ok) {
@@ -59,7 +60,8 @@ ${ctx}
     throw new Error(`Gemini ${res.status}: ${err}`);
   }
   const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '😔 No se pudo generar respuesta.';
+  return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+    || '😔 No pude generar respuesta.';
 }
 
 // ───────────────────────────────────────────────────────────────────────────────
@@ -71,8 +73,8 @@ const PORT         = process.env.PORT || 3000;
 const WHATSAPP_TKN = process.env.WHATSAPP_TOKEN;
 const PHONE_ID     = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const FASTAPI_URL  = process.env.FASTAPI_URL;
-if (!WHATSAPP_TKN || !PHONE_ID) throw new Error('🚨 Falta configuración de WhatsApp en .env');
-if (!FASTAPI_URL) throw new Error('🚨 Falta FASTAPI_URL en .env');
+if (!WHATSAPP_TKN || !PHONE_ID) throw new Error('🚨 Falta configuración de WhatsApp');
+if (!FASTAPI_URL) throw new Error('🚨 Falta FASTAPI_URL');
 
 function sendText(to, text) {
   return axios.post(
@@ -84,18 +86,11 @@ function sendText(to, text) {
 
 function sendButtons(to, bodyText, buttons) {
   const payload = {
-    messaging_product: 'whatsapp',
-    to,
-    type: 'interactive',
-    interactive: {
-      type: 'button',
-      body: { text: bodyText },
-      action: { buttons: buttons.map(b => ({ type: 'reply', reply: { id: b.id, title: b.title } })) }
-    }
+    messaging_product: 'whatsapp', to, type: 'interactive',
+    interactive: { type: 'button', body: { text: bodyText }, action: { buttons: buttons.map(b => ({ type: 'reply', reply: { id: b.id, title: b.title } })) } }
   };
   return axios.post(
-    `https://graph.facebook.com/v18.0/${PHONE_ID}/messages`,
-    payload,
+    `https://graph.facebook.com/v18.0/${PHONE_ID}/messages`, payload,
     { headers: { Authorization: `Bearer ${WHATSAPP_TKN}` } }
   );
 }
@@ -103,51 +98,13 @@ function sendButtons(to, bodyText, buttons) {
 // ───────────────────────────────────────────────────────────────────────────────
 // Utilities: normalize, timers, session
 // ───────────────────────────────────────────────────────────────────────────────
-function normalize(str) {
-  return str.normalize('NFD').replace(/[^\p{L}\p{N} ]/gu, '').toLowerCase().trim();
-}
-
-const sessionData  = {};
-const eventosCache = {};
-const inactTimers  = {};
-
-function clearTimers(from) {
-  const t = inactTimers[from];
-  if (t) {
-    clearTimeout(t.warning1);
-    clearTimeout(t.warning2);
-    clearTimeout(t.close);
-    delete inactTimers[from];
-  }
-}
-
-function resetUser(from) {
-  sessionData[from] = { context: 'inicio' };
-  delete eventosCache[from];
-  delete sessionData[from].dictPages;
-  delete sessionData[from].dictPageIdx;
-  clearTimers(from);
-}
-
-function startInactivity(from, reply) {
-  clearTimers(from);
-  inactTimers[from] = {
-    warning1: setTimeout(() => reply('🔔 Sigo aquí si necesitas ayuda. ¿Quieres algo más?'), 5 * 60000),
-    warning2: setTimeout(() => reply('🔔 Estoy pendiente.'), 6 * 60000),
-    close: setTimeout(() => { reply('🕒 Adiós por ahora. ¡Vuelve pronto! 👋'); resetUser(from); }, 7 * 60000)
-  };
-}
-
-function parsePrice(str) {
-  if (!str) return Infinity;
-  const s = str.toLowerCase();
-  if (s.includes('gratis')) return 0;
-  const n = parseInt(str.replace(/[^0-9]/g, ''), 10);
-  return isNaN(n) ? Infinity : n;
-}
-
-const FOOD_TERMS = ['comida','restaurante','barcito','almuerzo','cena','pizza','taco','postre','helado','bebida'];
-
+function normalize(str) { return str.normalize('NFD').replace(/[^\p{L}\p{N} ]/gu,'').toLowerCase().trim(); }
+const sessionData = {}, eventosCache = {}, inactTimers = {};
+function clearTimers(from) { const t = inactTimers[from]; if(t){clearTimeout(t.warning1);clearTimeout(t.warning2);clearTimeout(t.close);delete inactTimers[from];}} 
+function resetUser(from){ sessionData[from]={context:'inicio'}; delete eventosCache[from]; delete sessionData[from].dictPages; delete sessionData[from].dictPageIdx; clearTimers(from);} 
+function startInactivity(from,reply){ clearTimers(from); inactTimers[from]={ warning1:setTimeout(()=>reply('🔔 Aquí sigo si necesitas algo más!'),5*60000), warning2:setTimeout(()=>reply('🔔 Seguimos atentos.'),6*60000), close:setTimeout(()=>{reply('🕒 Hasta luego! 👋');resetUser(from);},7*60000) };} 
+function parsePrice(str){ if(!str) return Infinity; const n=parseInt(str.replace(/[^0-9]/g,''),10); return isNaN(n)?Infinity:n; }
+const FOOD_TERMS=['comida','restaurante','pizza','taco','postre','helado','bebida'];
 // ───────────────────────────────────────────────────────────────────────────────
 // Webhook
 // ───────────────────────────────────────────────────────────────────────────────
