@@ -1,6 +1,6 @@
 # 😉 CaliAndo Bot
 
-Este es un **bot de WhatsApp** desarrollado usando **Twilio** y **Node.js** para recomendar planes y eventos culturales en la ciudad de Cali. 
+Este es un **bot de WhatsApp** desarrollado usando **gemini** y **Node.js** para recomendar planes y eventos culturales en la ciudad de Cali. 
 El bot interactúa de manera conversacional con los usuarios y responde con recomendaciones personalizadas basadas en sus intereses.
 
 ---
@@ -10,11 +10,10 @@ El bot interactúa de manera conversacional con los usuarios y responde con reco
 Antes de ejecutar este bot, asegúrate de tener:
 
 - Node.js (versión LTS recomendada).
-- Cuenta de Twilio (Account SID y Auth Token activos).
-- ngrok (para exponer el servidor local a internet).
-- Base de datos PostgreSQL local o Supabase.
-- Clave de SerpAPI (para el Diccionario Caleño).
-
+- Base de datos Supabase.
+- Clave de SerpAPI.
+- clave de gemini
+- Supabase
 ---
 
 ## ✨ Instalación
@@ -66,20 +65,6 @@ Copia la URL generada (ejemplo: `https://xxxxx.ngrok.io`) y configúrala en el *
 
 ---
 
-## 🌐 Webhook de Twilio
-
-En el dashboard de Twilio:
-
-- Sandbox WhatsApp > Configura "When a message comes in" con la URL:
-
-```
-https://xxxxx.ngrok.io/webhook
-```
-
-(Recuerda reemplazar `xxxxx` por tu URL ngrok).
-
----
-
 ## 🔄 Flujo de Conversación
 
 - Cuando el usuario escribe:
@@ -94,11 +79,10 @@ https://xxxxx.ngrok.io/webhook
 
 - **Node.js**
 - **Express**
-- **Twilio API (WhatsApp)**
-- **ngrok**
-- **PostgreSQL**
+- **WhatsApp API**
+- **supabase**
 - **SerpAPI**
-- **Opcional: OpenAI o HuggingFace** para mejor interpretación de mensajes
+- **gemini o HuggingFace** para mejor interpretación de mensajes
 
 ---
 
@@ -110,7 +94,7 @@ https://xxxxx.ngrok.io/webhook
 
 ---
 
-## 🎉 Hecho con pasión por Jramirezzz
+## 🎉 Hecho por Jramirezzz
 
 ❤️ #CaliEsSabor #CaliAndoBot
 
