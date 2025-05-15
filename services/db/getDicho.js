@@ -3,16 +3,16 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-async function getRandomDicho(exclude = []) {
+async function getdichoByIndex(idx) {
   const query = `
-    SELECT id, dicho, significado
+    SELECT dicho, significado
     FROM dichos_calenos
-    WHERE id <> ALL($1)
-    ORDER BY RANDOM()
+    ORDER BY id
+    OFFSET $1
     LIMIT 1
   `;
-  const { rows } = await pool.query(query, [exclude]);
-  return rows.length > 0 ? rows[0] : null;
+  const { rows } = await pool.query(query, [idx]);
+  if (rows.length === 0) return null;
+  return rows[0]; // { dicho: "...", significado: "..." }
 }
-
-module.exports = { getRandomDicho };
+module.exports = { getdichoByIndex };

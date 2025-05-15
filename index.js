@@ -8,20 +8,23 @@ const fetch = require('node-fetch'); // para usar fetch en Node.js
 const { getDetallePorFuente } = require('./services/db/getDetalle');
 const { getLiveEvents } = require('./services/googleEvents');
 const { getMeaning } = require('./services/db/getDiccionario');
+const { getdichoByIndex } = require('./services/db/getDichoByIndex'); // función que debes tener creada
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_KEY) throw new Error('🚨 Falta GEMINI_API_KEY en .env');
 
 // Función para enriquecer la respuesta con Gemini Flash
 async function enrichAnswer(userMsg, docs) {
-  const ctx = docs.map((d, i) => {
-    let base = `Evento ${i + 1}: ${d.nombre}`;
-    if (d.date) base += ` | Fecha: ${d.date}`;
-    if (d.venue) base += ` | Lugar: ${d.venue}`;
-    if (d.link) base += ` | Más info: ${d.link}`;
-    base += `\nDescripción: ${d.descripcion || 'Sin descripción disponible.'}`;
-    return base;
-  }).join('\n\n');
+  const ctx = docs
+    .map((d, i) => {
+      let base = `Evento ${i + 1}: ${d.nombre}`;
+      if (d.date) base += ` | Fecha: ${d.date}`;
+      if (d.venue) base += ` | Lugar: ${d.venue}`;
+      if (d.link) base += ` | Más info: ${d.link}`;
+      base += `\nDescripción: ${d.descripcion || 'Sin descripción disponible.'}`;
+      return base;
+    })
+    .join('\n\n');
 
   const prompt = `
 Eres CaliAndo, un asistente caleño muy cercano y amigable.
@@ -43,8 +46,8 @@ Respuesta:`.trim();
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 250, temperature: 0.7, topP: 0.9 }
-    })
+      generationConfig: { maxOutputTokens: 250, temperature: 0.7, topP: 0.9 },
+    }),
   });
 
   if (!res.ok) {
@@ -82,14 +85,12 @@ function sendButtons(to, bodyText, buttons) {
     interactive: {
       type: 'button',
       body: { text: bodyText },
-      action: { buttons: buttons.map(b => ({ type: 'reply', reply: { id: b.id, title: b.title } })) }
-    }
+      action: { buttons: buttons.map((b) => ({ type: 'reply', reply: { id: b.id, title: b.title } })) },
+    },
   };
-  return axios.post(
-    `https://graph.facebook.com/v18.0/${PHONE_ID}/messages`,
-    payload,
-    { headers: { Authorization: `Bearer ${WHATSAPP_TKN}` } }
-  );
+  return axios.post(`https://graph.facebook.com/v18.0/${PHONE_ID}/messages`, payload, {
+    headers: { Authorization: `Bearer ${WHATSAPP_TKN}` },
+  });
 }
 
 // Utilities y sesiones
@@ -111,6 +112,7 @@ function resetUser(from) {
   delete eventosCache[from];
   delete sessionData[from].dictPages;
   delete sessionData[from].dictPageIdx;
+  delete sessionData[from].dichoIndex;
   clearTimers(from);
 }
 function startInactivity(from, reply) {
@@ -134,8 +136,9 @@ function parsePrice(str) {
 }
 const FOOD_TERMS = ['comida', 'restaurante', 'pizza', 'taco', 'postre', 'helado', 'bebida'];
 
-// Palabras para salir del diccionario
+// Palabras para salir del diccionario o dichos
 const EXIT_DICT_WORDS = ['salir', 'volver', 'regresar', 'buscar eventos', 'eventos'];
+const EXIT_DICHOS_WORDS = EXIT_DICT_WORDS;
 
 // Webhook principal
 app.post('/webhook', async (req, res) => {
@@ -145,7 +148,7 @@ app.post('/webhook', async (req, res) => {
   const reply = (txt) => sendText(from, txt);
   clearTimers(from);
 
-  // Botones interactivos básicos (eventos vivo o diccionario)
+  // Botones interactivos básicos (eventos vivo, diccionario, dichos)
   if (msg.type === 'interactive' && msg.interactive.type === 'button_reply') {
     const id = msg.interactive.button_reply.id;
     if (id === 'VER_EVENTOS') {
@@ -153,9 +156,12 @@ app.post('/webhook', async (req, res) => {
       const list = await getLiveEvents('eventos en vivo');
       if (!list.length) await reply('😔 No encontré eventos cercanos.');
       else {
-        const out = list.map(ev =>
-          `• *${ev.title}*\n  📅 ${ev.date}\n  📍 ${ev.venue}${ev.description ? `\n  📝 ${ev.description}` : ''}\n  🔗 ${ev.link}`
-        ).join('\n\n');
+        const out = list
+          .map(
+            (ev) =>
+              `• *${ev.title}*\n  📅 ${ev.date}\n  📍 ${ev.venue}${ev.description ? `\n  📝 ${ev.description}` : ''}\n  🔗 ${ev.link}`
+          )
+          .join('\n\n');
         await reply(`🎫 Eventos en vivo:\n\n${out}`);
       }
       startInactivity(from, reply);
@@ -164,7 +170,22 @@ app.post('/webhook', async (req, res) => {
     if (id === 'DICCIONARIO') {
       resetUser(from);
       sessionData[from].context = 'diccionario';
-      await reply('📚 Entraste al diccionario caleño. Envía la palabra que quieras.\n🔄 Para salir escribe: salir, regresar o buscar eventos.');
+      await reply(
+        '📚 Entraste al diccionario caleño. Envía la palabra que quieras.\n🔄 Para salir escribe: salir, regresar o buscar eventos.'
+      );
+      startInactivity(from, reply);
+      return res.sendStatus(200);
+    }
+    if (id === 'DICHOS') {
+      resetUser(from);
+      sessionData[from].context = 'dichos';
+      sessionData[from].dichoIndex = 0;
+      const dicho = await getdichoByIndex(0);
+      if (!dicho) {
+        await reply('😔 No encontré dichos por ahora.');
+      } else {
+        await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.`);
+      }
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
@@ -175,7 +196,7 @@ app.post('/webhook', async (req, res) => {
 
   try {
     // Filtro comida simple
-    if (FOOD_TERMS.some(t => text.includes(t))) {
+    if (FOOD_TERMS.some((t) => text.includes(t))) {
       await reply('😔 Lo siento, no recomiendo comida. Puedo sugerir planes culturales o al aire libre.');
       startInactivity(from, reply);
       return res.sendStatus(200);
@@ -183,7 +204,7 @@ app.post('/webhook', async (req, res) => {
 
     // Saludos: menú amigable con texto enriquecido
     const GREET = ['hola', 'buenas', 'hey', 'holi', 'buenos días', 'buenas tardes'];
-    if (GREET.some(w => text.includes(w))) {
+    if (GREET.some((w) => text.includes(w))) {
       resetUser(from);
       await sendButtons(
         from,
@@ -191,45 +212,43 @@ app.post('/webhook', async (req, res) => {
         [
           { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
           { id: 'DICCIONARIO', title: 'Abrir diccionario' },
+          { id: 'DICHOS', title: 'Dichos caleños' },
         ]
       );
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
 
-    // Si estamos en diccionario y el usuario quiere salir o buscar eventos
+    // Contexto: DICCONARIO
     if (sessionData[from]?.context === 'diccionario') {
-      if (EXIT_DICT_WORDS.some(word => text.includes(word))) {
+      if (EXIT_DICT_WORDS.some((word) => text.includes(word))) {
         resetUser(from);
-        // Si pidió específicamente buscar eventos
         if (text.includes('evento')) {
           await reply('🔍 Ok, buscando eventos para ti...');
           const list = await getLiveEvents('eventos en vivo');
           if (!list.length) await reply('😔 No encontré eventos cercanos.');
           else {
-            const out = list.map(ev =>
-              `• *${ev.title}*\n  📅 ${ev.date}\n  📍 ${ev.venue}${ev.description ? `\n  📝 ${ev.description}` : ''}\n  🔗 ${ev.link}`
-            ).join('\n\n');
+            const out = list
+              .map(
+                (ev) =>
+                  `• *${ev.title}*\n  📅 ${ev.date}\n  📍 ${ev.venue}${ev.description ? `\n  📝 ${ev.description}` : ''}\n  🔗 ${ev.link}`
+              )
+              .join('\n\n');
             await reply(`🎫 Eventos en vivo:\n\n${out}`);
           }
           startInactivity(from, reply);
           return res.sendStatus(200);
         } else {
-          // Volver al menú principal
-          await sendButtons(
-            from,
-            '¿Qué quieres hacer ahora? Aquí tienes opciones:',
-            [
-              { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
-              { id: 'DICCIONARIO', title: 'Abrir diccionario' },
-            ]
-          );
+          await sendButtons(from, '¿Qué quieres hacer ahora?', [
+            { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
+            { id: 'DICCIONARIO', title: 'Abrir diccionario' },
+            { id: 'DICHOS', title: 'Dichos caleños' },
+          ]);
           startInactivity(from, reply);
           return res.sendStatus(200);
         }
       }
 
-      // Si el usuario quiere ver más páginas en diccionario
       if (text === 'ver mas' && Array.isArray(sessionData[from].dictPages)) {
         const idx = sessionData[from].dictPageIdx + 1;
         const pages = sessionData[from].dictPages;
@@ -244,7 +263,6 @@ app.post('/webhook', async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // Buscar el significado en la DB
       const significado = await getMeaning(text);
       if (!significado) {
         await reply(`😔 No encontré el significado de *${text}* en el diccionario.`);
@@ -258,6 +276,53 @@ app.post('/webhook', async (req, res) => {
         await reply(`📚 *${text}*:\n\n${pages[0]}`);
         if (pages.length > 1) await reply('💡 Envía "ver mas" para continuar...');
       }
+      startInactivity(from, reply);
+      return res.sendStatus(200);
+    }
+
+    // Contexto: DICHOS
+    if (sessionData[from]?.context === 'dichos') {
+      if (EXIT_DICHOS_WORDS.some((word) => text.includes(word))) {
+        resetUser(from);
+        if (text.includes('evento')) {
+          await reply('🔍 Ok, buscando eventos para ti...');
+          const list = await getLiveEvents('eventos en vivo');
+          if (!list.length) await reply('😔 No encontré eventos cercanos.');
+          else {
+            const out = list
+              .map(
+                (ev) =>
+                  `• *${ev.title}*\n  📅 ${ev.date}\n  📍 ${ev.venue}${ev.description ? `\n  📝 ${ev.description}` : ''}\n  🔗 ${ev.link}`
+              )
+              .join('\n\n');
+            await reply(`🎫 Eventos en vivo:\n\n${out}`);
+          }
+          startInactivity(from, reply);
+          return res.sendStatus(200);
+        } else {
+          await sendButtons(from, '¿Qué quieres hacer ahora?', [
+            { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
+            { id: 'DICCIONARIO', title: 'Abrir diccionario' },
+            { id: 'DICHOS', title: 'Dichos caleños' },
+          ]);
+          startInactivity(from, reply);
+          return res.sendStatus(200);
+        }
+      }
+
+      if (text === 'otro dicho') {
+        sessionData[from].dichoIndex++;
+        const dicho = await getdichoByIndex(sessionData[from].dichoIndex);
+        if (!dicho) {
+          await reply('No hay más dichos por ahora. Escribe "salir" para regresar al menú.');
+        } else {
+          await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.`);
+        }
+        startInactivity(from, reply);
+        return res.sendStatus(200);
+      }
+
+      await reply('Para seguir con los dichos escribe "otro dicho", o escribe "salir" para regresar al menú.');
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
