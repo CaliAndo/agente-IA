@@ -134,6 +134,9 @@ function parsePrice(str) {
 }
 const FOOD_TERMS = ['comida', 'restaurante', 'pizza', 'taco', 'postre', 'helado', 'bebida'];
 
+// Palabras para salir del diccionario
+const EXIT_DICT_WORDS = ['salir', 'volver', 'regresar', 'buscar eventos', 'eventos'];
+
 // Webhook principal
 app.post('/webhook', async (req, res) => {
   const msg = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
@@ -194,23 +197,39 @@ app.post('/webhook', async (req, res) => {
       return res.sendStatus(200);
     }
 
-    // Comandos para salir o cambiar contexto
-    if (['salir', 'volver', 'menu'].includes(text)) {
-      resetUser(from);
-      await sendButtons(
-        from,
-        '¿Qué quieres hacer ahora? Aquí te dejo opciones:',
-        [
-          { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
-          { id: 'DICCIONARIO', title: 'Abrir diccionario' },
-        ]
-      );
-      startInactivity(from, reply);
-      return res.sendStatus(200);
-    }
-
-    // Flujo diccionario
+    // Si estamos en diccionario y el usuario quiere salir o buscar eventos
     if (sessionData[from]?.context === 'diccionario') {
+      if (EXIT_DICT_WORDS.some(word => text.includes(word))) {
+        resetUser(from);
+        // Si pidió específicamente buscar eventos
+        if (text.includes('evento')) {
+          await reply('🔍 Ok, buscando eventos para ti...');
+          const list = await getLiveEvents('eventos en vivo');
+          if (!list.length) await reply('😔 No encontré eventos cercanos.');
+          else {
+            const out = list.map(ev =>
+              `• *${ev.title}*\n  📅 ${ev.date}\n  📍 ${ev.venue}${ev.description ? `\n  📝 ${ev.description}` : ''}\n  🔗 ${ev.link}`
+            ).join('\n\n');
+            await reply(`🎫 Eventos en vivo:\n\n${out}`);
+          }
+          startInactivity(from, reply);
+          return res.sendStatus(200);
+        } else {
+          // Volver al menú principal
+          await sendButtons(
+            from,
+            '¿Qué quieres hacer ahora? Aquí tienes opciones:',
+            [
+              { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
+              { id: 'DICCIONARIO', title: 'Abrir diccionario' },
+            ]
+          );
+          startInactivity(from, reply);
+          return res.sendStatus(200);
+        }
+      }
+
+      // Si el usuario quiere ver más páginas en diccionario
       if (text === 'ver mas' && Array.isArray(sessionData[from].dictPages)) {
         const idx = sessionData[from].dictPageIdx + 1;
         const pages = sessionData[from].dictPages;
@@ -225,6 +244,7 @@ app.post('/webhook', async (req, res) => {
         return res.sendStatus(200);
       }
 
+      // Buscar el significado en la DB
       const significado = await getMeaning(text);
       if (!significado) {
         await reply(`😔 No encontré el significado de *${text}* en el diccionario.`);
