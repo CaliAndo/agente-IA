@@ -7,7 +7,8 @@ const fetch = require('node-fetch'); // para usar fetch en Node.js
 // Servicios externos
 const { getDetallePorFuente } = require('./services/db/getDetalle');
 const { getLiveEvents } = require('./services/googleEvents');
-const { getMeaningFromSerpAPI } = require('./services/serpAPI/meanings');
+const { getMeaning } = require('./services/db/getDiccionario');
+
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_KEY) throw new Error('🚨 Falta GEMINI_API_KEY en .env');
@@ -218,19 +219,24 @@ app.post('/webhook', async (req, res) => {
         startInactivity(from, reply);
         return res.sendStatus(200);
       }
-      const meaning = await getMeaningFromSerpAPI(text);
-      if (!meaning) await reply(`😔 No encontré el significado de *${text}*.`);
-      else {
-        const pages = [];
-        for (let i = 0; i < meaning.length; i += 800) pages.push(meaning.slice(i, i + 800));
-        sessionData[from].dictPages = pages;
-        sessionData[from].dictPageIdx = 0;
-        await reply(`📚 *${text}*:\n\n${pages[0]}`);
-        if (pages.length > 1) await reply('💡 Envía "ver mas" para continuar...');
-      }
-      startInactivity(from, reply);
-      return res.sendStatus(200);
+    
+      const significado = await getMeaning(text);
+  if (!significado) {
+    await reply(`😔 No encontré el significado de *${text}* en el diccionario.`);
+  } else {
+    // Si es muy largo, partir en páginas
+    const pages = [];
+    for (let i = 0; i < significado.length; i += 800) {
+      pages.push(significado.slice(i, i + 800));
     }
+    sessionData[from].dictPages = pages;
+    sessionData[from].dictPageIdx = 0;
+    await reply(`📚 *${text}*:\n\n${pages[0]}`);
+    if (pages.length > 1) await reply('💡 Envía "ver mas" para continuar...');
+  }
+  startInactivity(from, reply);
+  return res.sendStatus(200);
+}
 
     // Búsqueda rápida eventos hoy/fin de semana
     if (/eventos?\s+(hoy|este fin de semana|finde)/.test(text)) {
