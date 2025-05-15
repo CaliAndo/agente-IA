@@ -11,7 +11,9 @@ Antes de ejecutar este bot, asegúrate de tener:
 
 - Node.js (versión LTS recomendada).
 - Base de datos Supabase.
-- Clave de SerpAPI (para el Diccionario Caleño).
+- Clave de SerpAPI.
+- clave de gemini
+- Supabase
 ---
 
 ## ✨ Instalación
