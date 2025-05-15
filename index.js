@@ -99,11 +99,20 @@ function sendButtons(to, bodyText, buttons) {
 // Utilities: normalize, timers, session
 // ───────────────────────────────────────────────────────────────────────────────
 function normalize(str) { return str.normalize('NFD').replace(/[^\p{L}\p{N} ]/gu,'').toLowerCase().trim(); }
+
 const sessionData = {}, eventosCache = {}, inactTimers = {};
-function clearTimers(from) { const t = inactTimers[from]; if(t){clearTimeout(t.warning1);clearTimeout(t.warning2);clearTimeout(t.close);delete inactTimers[from];}} 
-function resetUser(from){ sessionData[from]={context:'inicio'}; delete eventosCache[from]; delete sessionData[from].dictPages; delete sessionData[from].dictPageIdx; clearTimers(from);} 
-function startInactivity(from,reply){ clearTimers(from); inactTimers[from]={ warning1:setTimeout(()=>reply('🔔 Aquí sigo si necesitas algo más!'),5*60000), warning2:setTimeout(()=>reply('🔔 Seguimos atentos.'),6*60000), close:setTimeout(()=>{reply('🕒 Hasta luego! 👋');resetUser(from);},7*60000) };} 
-function parsePrice(str){ if(!str) return Infinity; const n=parseInt(str.replace(/[^0-9]/g,''),10); return isNaN(n)?Infinity:n; }
+
+function clearTimers(from) { 
+  const t = inactTimers[from]; if(t){clearTimeout(t.warning1);clearTimeout(t.warning2);clearTimeout(t.close);delete inactTimers[from];}} 
+
+function resetUser(from){
+   sessionData[from]={context:'inicio'}; delete eventosCache[from]; delete sessionData[from].dictPages; delete sessionData[from].dictPageIdx; clearTimers(from);} 
+
+function startInactivity(from,reply){
+   clearTimers(from); inactTimers[from]={ warning1:setTimeout(()=>reply('🔔 Aquí sigo si necesitas algo más!'),5*60000), warning2:setTimeout(()=>reply('🔔 Seguimos atentos.'),6*60000), close:setTimeout(()=>{reply('🕒 Hasta luego! 👋');resetUser(from);},7*60000) };} 
+
+function parsePrice(str){
+   if(!str) return Infinity; const n=parseInt(str.replace(/[^0-9]/g,''),10); return isNaN(n)?Infinity:n; }
 const FOOD_TERMS=['comida','restaurante','pizza','taco','postre','helado','bebida'];
 
 // ───────────────────────────────────────────────────────────────────────────────
@@ -157,7 +166,7 @@ app.post('/webhook', async (req, res) => {
     const GREET = ['hola','buenas','hey','holi','buenos días','buenas tardes'];
     if (GREET.some(w => text.includes(w))) {
       resetUser(from);
-      await sendButtons(from, '👋 ¡Hola! ¿Qué te interesa hoy?', [
+      await sendButtons(from, '¡Hola! Soy CaliAndo y estoy aquí para ayudarte a descubrir lo mejor de Cali. Cuéntame qué te gustaría hacer hoy: ¿te antoja algo cultural, quieres parchar con amigos o recorrer lugares nuevos? Estoy listo para mostrarte lo que esta ciudad sabrosa tiene para ti💃', [
         { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
         { id: 'DICCIONARIO', title: 'Abrir diccionario' }
       ]);
@@ -285,14 +294,27 @@ app.post('/webhook', async (req, res) => {
 
     // 7) Initial semantic search
     const resp = await axios.post(`${FASTAPI_URL}/buscar-coincidencia`, { texto: msg.text.body, fuente: 'whatsapp', nombre: 'CaliAndo' });
-    const data = resp.data;
-    if (!data.ok || !data.resultados.length) {
-      await reply('😔 No encontré nada. Prueba otra frase.');
-    } else {
-      eventosCache[from] = { lista: data.resultados, page: 0 };
-      sessionData[from] = { context: 'resultados' };
-      const primeros = data.resultados.slice(0, 5).map(e => `• ${e.nombre}`).join('\n');
-      await reply(`🔎 Te recomiendo estos planes:\n\n${primeros}\n\nEscribe el nombre o "ver mas".`);
+const data = resp.data;
+
+if (!data.ok || !data.resultados.length) {
+  await reply('😔 Uy, no pude encontrar nada con eso. ¿Quieres probar con otra frase? Estoy aquí para ayudarte.');
+} else {
+  eventosCache[from] = { lista: data.resultados, page: 0 };
+  sessionData[from] = { context: 'resultados' };
+
+  // Construimos un texto enriquecido con emojis y datos clave
+  const primeros = data.resultados.slice(0, 5).map(e => {
+    return `✨ *${e.nombre}*\n` +
+           `📅 Fecha: ${e.date || 'Por confirmar'}\n` +
+           `📍 Lugar: ${e.venue || 'Por confirmar'}\n` +
+           (e.link ? `🔗 Más info: ${e.link}\n` : '') +
+           `\n`;
+  }).join('');
+
+  const mensaje = `¡Hola! 😊 Aquí te dejo algunas recomendaciones que seguro te van a encantar:\n\n${primeros}` +
+  `¿Quieres que te cuente más de algún plan? Solo escribe el nombre o dime "ver más". ¡Estoy aquí para ayudarte! 🚀`;
+
+await reply(mensaje);
     }
     startInactivity(from, reply);
     return res.sendStatus(200);
