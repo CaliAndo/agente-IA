@@ -164,7 +164,8 @@ app.post('/webhook', async (req, res) => {
     if (id === 'DICCIONARIO') {
       resetUser(from);
       sessionData[from].context = 'diccionario';
-      await reply('📚 Entraste al diccionario caleño. Envía la palabra que quieras.');
+      await reply('📚 Entraste al diccionario caleño. Envía la palabra que quieras.\n🔄 Para salir escribe: salir, regresar o buscar eventos.');
+
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
@@ -257,6 +258,8 @@ app.post('/webhook', async (req, res) => {
         sessionData[from].dictPageIdx = 0;
         await reply(`📚 *${text}*:\n\n${pages[0]}`);
         if (pages.length > 1) await reply('💡 Envía "ver mas" para continuar...');
+        await reply('💡 Escribe "salir" para volver al menú principal o "buscar eventos" para ver eventos.');
+
       }
       startInactivity(from, reply);
       return res.sendStatus(200);
