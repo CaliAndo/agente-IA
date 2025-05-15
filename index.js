@@ -356,24 +356,20 @@ app.post('/webhook', async (req, res) => {
       eventosCache[from] = { lista: data.resultados, page: 0 };
       sessionData[from] = { context: 'resultados' };
 
-      const primeros = data.resultados
-        .slice(0, 5)
-        .map((e) => {
-          return (
-            `✨ *${e.nombre}*\n` +
-            `📅 Fecha: ${e.date || 'Por confirmar'}\n` +
-            `📍 Lugar: ${e.venue || 'Por confirmar'}\n` +
-            (e.link ? `🔗 Más info: ${e.link}\n` : '') +
-            `\n`
-          );
-        })
-        .join('');
+      const primeros = data.resultados.slice(0, 5).map(e => `• ${e.nombre}`).join('\n');
 
-      const mensaje =
-        `¡Hola! 😊 Aquí te dejo algunas recomendaciones que seguro te van a encantar:\n\n${primeros}` +
-        `¿Quieres que te cuente más de algún plan? Solo escribe el nombre o dime "ver más". ¡Estoy aquí para ayudarte! 🚀`;
+      const mensajesIntro = [
+        '¡Hola! Aquí algunas ideas para disfrutar Cali a tope:',
+        '✨ Te recomiendo estos planes que seguro te van a encantar:',
+        '🎉 Si quieres pasarla bien, prueba con estos planes:',
+        '¿Buscas algo para hacer? Mira estas opciones:',
+      ];
 
-      await reply(mensaje);
+      const intro = mensajesIntro[Math.floor(Math.random() * mensajesIntro.length)];
+
+      const mensaje = `${intro}\n\n${primeros}\n\n¿Quieres que te cuente más sobre alguno? Solo dime el nombre o escribe "ver más".`;
+
+await reply(mensaje);
     }
     startInactivity(from, reply);
     return res.sendStatus(200);
