@@ -9,7 +9,6 @@ const { getDetallePorFuente } = require('./services/db/getDetalle');
 const { getLiveEvents } = require('./services/googleEvents');
 const { getMeaning } = require('./services/db/getDiccionario');
 
-
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_KEY) throw new Error('🚨 Falta GEMINI_API_KEY en .env');
 
@@ -195,17 +194,23 @@ app.post('/webhook', async (req, res) => {
       return res.sendStatus(200);
     }
 
+    // Comandos para salir o cambiar contexto
+    if (['salir', 'volver', 'menu'].includes(text)) {
+      resetUser(from);
+      await sendButtons(
+        from,
+        '¿Qué quieres hacer ahora? Aquí te dejo opciones:',
+        [
+          { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
+          { id: 'DICCIONARIO', title: 'Abrir diccionario' },
+        ]
+      );
+      startInactivity(from, reply);
+      return res.sendStatus(200);
+    }
+
     // Flujo diccionario
-    if (text.startsWith('diccionario') || sessionData[from]?.context === 'diccionario') {
-      if (text.startsWith('diccionario')) {
-        resetUser(from);
-        sessionData[from].context = 'diccionario';
-        sessionData[from].dictPages = null;
-        sessionData[from].dictPageIdx = 0;
-        await reply('📚 Entraste al diccionario caleño. Envía la palabra que quieras.');
-        startInactivity(from, reply);
-        return res.sendStatus(200);
-      }
+    if (sessionData[from]?.context === 'diccionario') {
       if (text === 'ver mas' && Array.isArray(sessionData[from].dictPages)) {
         const idx = sessionData[from].dictPageIdx + 1;
         const pages = sessionData[from].dictPages;
@@ -219,24 +224,23 @@ app.post('/webhook', async (req, res) => {
         startInactivity(from, reply);
         return res.sendStatus(200);
       }
-    
+
       const significado = await getMeaning(text);
-  if (!significado) {
-    await reply(`😔 No encontré el significado de *${text}* en el diccionario.`);
-  } else {
-    // Si es muy largo, partir en páginas
-    const pages = [];
-    for (let i = 0; i < significado.length; i += 800) {
-      pages.push(significado.slice(i, i + 800));
+      if (!significado) {
+        await reply(`😔 No encontré el significado de *${text}* en el diccionario.`);
+      } else {
+        const pages = [];
+        for (let i = 0; i < significado.length; i += 800) {
+          pages.push(significado.slice(i, i + 800));
+        }
+        sessionData[from].dictPages = pages;
+        sessionData[from].dictPageIdx = 0;
+        await reply(`📚 *${text}*:\n\n${pages[0]}`);
+        if (pages.length > 1) await reply('💡 Envía "ver mas" para continuar...');
+      }
+      startInactivity(from, reply);
+      return res.sendStatus(200);
     }
-    sessionData[from].dictPages = pages;
-    sessionData[from].dictPageIdx = 0;
-    await reply(`📚 *${text}*:\n\n${pages[0]}`);
-    if (pages.length > 1) await reply('💡 Envía "ver mas" para continuar...');
-  }
-  startInactivity(from, reply);
-  return res.sendStatus(200);
-}
 
     // Búsqueda rápida eventos hoy/fin de semana
     if (/eventos?\s+(hoy|este fin de semana|finde)/.test(text)) {
@@ -362,7 +366,7 @@ app.post('/webhook', async (req, res) => {
       eventosCache[from] = { lista: data.resultados, page: 0 };
       sessionData[from] = { context: 'resultados' };
 
-      const primeros = data.resultados.slice(0, 5).map(e => `• ${e.nombre}`).join('\n');
+      const primeros = data.resultados.slice(0, 5).map((e) => `• ${e.nombre}`).join('\n');
 
       const mensajesIntro = [
         '¡Hola! Aquí algunas ideas para disfrutar Cali a tope:',
@@ -375,7 +379,7 @@ app.post('/webhook', async (req, res) => {
 
       const mensaje = `${intro}\n\n${primeros}\n\n¿Quieres que te cuente más sobre alguno? Solo dime el nombre o escribe "ver más".`;
 
-await reply(mensaje);
+      await reply(mensaje);
     }
     startInactivity(from, reply);
     return res.sendStatus(200);
