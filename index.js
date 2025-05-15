@@ -67,7 +67,7 @@ ${ctx}
 // ───────────────────────────────────────────────────────────────────────────────
 // Setup Express & WhatsApp Helpers
 // ───────────────────────────────────────────────────────────────────────────────
-const app          = express();
+const app  = express();
 app.use(express.json());
 const PORT         = process.env.PORT || 3000;
 const WHATSAPP_TKN = process.env.WHATSAPP_TOKEN;
@@ -265,8 +265,19 @@ app.post('/webhook', async (req, res) => {
       const dataFB = fbResp.data;
       if (!dataFB.ok || !dataFB.resultados.length) await reply('😔 No encontré nada.');
       else {
+        const primeros = dataFB.resultados.slice(0, 5).map(e => {
+          return `✨ *${e.nombre}*\n` +
+                 `📅 Fecha: ${e.date || 'Por confirmar'}\n` +
+                 `📍 Lugar: ${e.venue || 'Por confirmar'}\n` +
+                 (e.link ? `🔗 Más info: ${e.link}\n` : '');
+        }).join('\n');
+
+        const mensaje = `¡Hola! 😊 Aquí te dejo algunas recomendaciones que seguro te van a encantar:\n\n${primeros}\n
+        ¿Quieres que te cuente más de algún plan? Solo escribe el nombre o dime "ver más". ¡Estoy aquí para ayudarte! 🚀`;
+        
+        await reply(mensaje);
         eventosCache[from] = { lista: dataFB.resultados, page: 0 };
-        const primeros = dataFB.resultados.slice(0, 5).map(e => `• ${e.nombre}`).join('\n');
+
         await reply(`🔎 Te recomiendo estos planes:\n\n${primeros}\n\nEscribe el nombre o "ver mas".`);
       }
       startInactivity(from, reply);
