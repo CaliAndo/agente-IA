@@ -105,6 +105,7 @@ function resetUser(from){ sessionData[from]={context:'inicio'}; delete eventosCa
 function startInactivity(from,reply){ clearTimers(from); inactTimers[from]={ warning1:setTimeout(()=>reply('🔔 Aquí sigo si necesitas algo más!'),5*60000), warning2:setTimeout(()=>reply('🔔 Seguimos atentos.'),6*60000), close:setTimeout(()=>{reply('🕒 Hasta luego! 👋');resetUser(from);},7*60000) };} 
 function parsePrice(str){ if(!str) return Infinity; const n=parseInt(str.replace(/[^0-9]/g,''),10); return isNaN(n)?Infinity:n; }
 const FOOD_TERMS=['comida','restaurante','pizza','taco','postre','helado','bebida'];
+
 // ───────────────────────────────────────────────────────────────────────────────
 // Webhook
 // ───────────────────────────────────────────────────────────────────────────────
@@ -249,7 +250,7 @@ app.post('/webhook', async (req, res) => {
       if (fuseRes.length) {
         const elegido = fuseRes[0].item;
         const d = await getDetallePorFuente(elegido.fuente, elegido.referencia_id);
-        const docs = [{ texto: `${d.nombre}. ${d.descripcion || ''}`, score: 0 }];
+        const docs = [{ texto: `${d.nombre}. ${d.descripcion || ''}`, score: 0, link: d.enlace, date: d.fecha, venue: d.lugar }];
         let answer;
         try { answer = await enrichAnswer(msg.text.body, docs); }
         catch (err) {
@@ -265,6 +266,7 @@ app.post('/webhook', async (req, res) => {
       const dataFB = fbResp.data;
       if (!dataFB.ok || !dataFB.resultados.length) await reply('😔 No encontré nada.');
       else {
+        eventosCache[from] = { lista: dataFB.resultados, page: 0 };
         const primeros = dataFB.resultados.slice(0, 5).map(e => {
           return `✨ *${e.nombre}*\n` +
                  `📅 Fecha: ${e.date || 'Por confirmar'}\n` +
@@ -273,12 +275,9 @@ app.post('/webhook', async (req, res) => {
         }).join('\n');
 
         const mensaje = `¡Hola! 😊 Aquí te dejo algunas recomendaciones que seguro te van a encantar:\n\n${primeros}\n
-        ¿Quieres que te cuente más de algún plan? Solo escribe el nombre o dime "ver más". ¡Estoy aquí para ayudarte! 🚀`;
+¿Quieres que te cuente más de algún plan? Solo escribe el nombre o dime "ver más". ¡Estoy aquí para ayudarte! 🚀`;
         
         await reply(mensaje);
-        eventosCache[from] = { lista: dataFB.resultados, page: 0 };
-
-        await reply(`🔎 Te recomiendo estos planes:\n\n${primeros}\n\nEscribe el nombre o "ver mas".`);
       }
       startInactivity(from, reply);
       return res.sendStatus(200);
