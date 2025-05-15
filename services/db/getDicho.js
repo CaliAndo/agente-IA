@@ -1,18 +1,18 @@
-// services/db/getDiccionario.js
 const { Pool } = require('pg');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-async function getdicho(word) {
+async function getRandomDicho(exclude = []) {
   const query = `
-    SELECT significado
+    SELECT id, dicho, significado
     FROM dichos_calenos
-    WHERE LOWER(dicho) = LOWER($1)
+    WHERE id <> ALL($1)
+    ORDER BY RANDOM()
     LIMIT 1
   `;
-  const { rows } = await pool.query(query, [word]);
-  return rows.length > 0 ? rows[0].significado : null;
+  const { rows } = await pool.query(query, [exclude]);
+  return rows.length > 0 ? rows[0] : null;
 }
 
-module.exports = { getdicho };
+module.exports = { getRandomDicho };
