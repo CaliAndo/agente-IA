@@ -258,7 +258,6 @@ app.post('/webhook', async (req, res) => {
         sessionData[from].dictPageIdx = 0;
         await reply(`📚 *${text}*:\n\n${pages[0]}`);
         if (pages.length > 1) await reply('💡 Envía "ver mas" para continuar...');
-        await reply('💡 Escribe "salir" para volver al menú principal o "buscar eventos" para ver eventos.');
 
       }
       startInactivity(from, reply);
