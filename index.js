@@ -141,7 +141,7 @@ const FOOD_TERMS = [
   'arroz', 'pasta', 'tallarines', 'lasaña', 'lasagna', 'empanada', 'arepa',
   'tamal', 'tamales', 'antojito', 'snack', 'aperitivo', 'merienda',
   'desayuno', 'almuerzo', 'cena', 'brunch', 'cafetería', 'cafeteria',
-  'café', 'cafe', 'té', 'te', 'vino', 'licor', 'coctel',
+  'café', 'cafe', 'té', 'vino', 'licor', 'coctel',
   'cocktail', 'jugo', 'zumos', 'smoothie', 'batido', 'yogur', 'yogurt',
   'queso', 'pan', 'panadería', 'panaderia', 'pastelería', 'pasteleria',
   'heladería', 'heladeria', 'frutería', 'fruteria', 'verdulería',
