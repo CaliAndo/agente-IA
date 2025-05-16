@@ -329,8 +329,24 @@ app.post('/webhook', async (req, res) => {
         const dicho = await getdichoByIndex(sessionData[from].dichoIndex);
         if (!dicho) {
           await reply('No hay más dichos por ahora. Escribe "salir" para regresar al menú.');
+          await sendButtons(from,
+       '¿Qué quieres hacer ahora?',
+        [
+        { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
+         { id: 'DICCIONARIO',  title: 'Abrir diccionario'     },
+         { id: 'DICHOS',       title: 'Dichos caleños'         }
+        ]
+     );
         } else {
           await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.`);
+          await sendButtons(from,
+           '¿Qué quieres hacer ahora?',
+           [
+             { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
+             { id: 'DICCIONARIO',  title: 'Abrir diccionario'     },
+             { id: 'DICHOS',       title: 'Dichos caleños'         }
+           ]
+        );
         }
         startInactivity(from, reply);
         return res.sendStatus(200);
