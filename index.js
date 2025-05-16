@@ -135,13 +135,6 @@ function parsePrice(str) {
   return isNaN(n) ? Infinity : n;
 }
 
-function formatEvent(ev) {
-  let entry = `• *${ev.title}*`;
-  if (ev.date)  entry += `\n  📅 ${ev.date}`;
-  if (ev.venue) entry += `\n  📍 ${ev.venue}`;
-  if (ev.link)  entry += `\n  🔗 ${ev.link}`;
-  return entry;
-}
 const FOOD_TERMS = [
   'comida', 'restaurante', 'pizza', 'taco', 'postre', 'helado', 'bebida',
   'hamburguesa', 'sándwich', 'sandwich', 'hot dog', 'perro caliente',
@@ -176,13 +169,15 @@ app.post('/webhook', async (req, res) => {
     if (id === 'VER_EVENTOS') {
       await reply('🔍 Buscando eventos en vivo…');
       const list = await getLiveEvents('eventos en vivo');
-      if (!list.length) {
-        await reply('😔 No encontré eventos cercanos.');
-      } else {
-        // ------------ reemplazo aquí ------------
-        const out = list.map(formatEvent).join('\n\n');
+      if (!list.length) await reply('😔 No encontré eventos cercanos.');
+      else {
+        const out = list
+          .map(
+            (ev) =>
+              `• *${ev.title}*\n  📅 ${ev.date}\n  📍 ${ev.venue}${ev.description ? `\n  📝 ${ev.description}` : ''}\n  🔗 ${ev.link}`
+          )
+          .join('\n\n');
         await reply(`🎫 Eventos en vivo:\n\n${out}`);
-        // ---------------------------------------
       }
       startInactivity(from, reply);
       return res.sendStatus(200);
@@ -437,9 +432,17 @@ app.post('/webhook', async (req, res) => {
       else {
         eventosCache[from] = { lista: dataFB.resultados, page: 0 };
         const primeros = dataFB.resultados
-        .slice(0, 5)
-        .map(formatEvent)
-        .join('\n\n');
+          .slice(0, 5)
+          .map((e) => {
+            return (
+              `✨ *${e.nombre}*\n` +
+              `📅 Fecha: ${e.date || 'Por confirmar'}\n` +
+              `📍 Lugar: ${e.venue || 'Por confirmar'}\n` +
+              (e.link ? `🔗 Más info: ${e.link}\n` : '')
+            );
+          })
+          .join('\n');
+
         const mensaje = `¡Hola! 😊 Aquí te dejo algunas recomendaciones que seguro te van a encantar:\n\n${primeros}\n
 ¿Quieres que te cuente más de algún plan? Solo escribe el nombre o dime "ver más". ¡Estoy aquí para ayudarte! 🚀`;
 
