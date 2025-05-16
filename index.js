@@ -198,7 +198,7 @@ app.post('/webhook', async (req, res) => {
       if (!dicho) {
         await reply('😔 No encontré dichos por ahora.');
       } else {
-        await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.🔄 Para salir escribe: salir, regresar o buscar eventos.`);
+        await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.\n🔄 Para salir escribe: salir, regresar o buscar eventos.`);
       }
       startInactivity(from, reply);
       return res.sendStatus(200);
@@ -330,7 +330,7 @@ app.post('/webhook', async (req, res) => {
         if (!dicho) {
           await reply('No hay más dichos por ahora. Escribe "salir" para regresar al menú.');
         } else {
-          await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.🔄 Para salir escribe: salir, regresar o buscar eventos.`);
+          await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.\n🔄 Para salir escribe: salir, regresar o buscar eventos.`);
         }
         startInactivity(from, reply);
         return res.sendStatus(200);
