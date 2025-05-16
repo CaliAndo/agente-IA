@@ -446,25 +446,40 @@ app.post('/webhook', async (req, res) => {
     const data = resp.data;
 
     if (!data.ok || !data.resultados.length) {
-      await reply('😔 Uy, no pude encontrar nada con eso. ¿Quieres probar con otra frase? Estoy aquí para ayudarte.');
+      await reply(
+        '😔 Uy, no pude encontrar nada con eso. ¿Quieres probar con otra frase? Estoy aquí para ayudarte.'
+      );
     } else {
+      // Guardamos en cache para paginación y contexto
       eventosCache[from] = { lista: data.resultados, page: 0 };
       sessionData[from] = { context: 'resultados' };
-
-      const primeros = data.resultados.slice(0, 5).map((e) => `• ${e.nombre}`).join('\n');
-
-      const mensajesIntro = [
-        '¡Hola! Aquí algunas ideas para disfrutar Cali a tope:',
-        '✨ Te recomiendo estos planes que seguro te van a encantar:',
-        '🎉 Si quieres pasarla bien, prueba con estos planes:',
-        '¿Buscas algo para hacer? Mira estas opciones:',
-      ];
-
-      const intro = mensajesIntro[Math.floor(Math.random() * mensajesIntro.length)];
-
-      const mensaje = `${intro}\n\n${primeros}\n\n¿Quieres que te cuente más sobre alguno? Solo dime el nombre o escribe "ver más".`;
-
-      await reply(mensaje);
+    
+      // Preparamos el contexto para Gemini: convertimos cada plan en un mini-doc
+      const docs = data.resultados.slice(0, 5).map((e) => ({
+        nombre: e.nombre,
+        descripcion: e.description || e.descripcion || 'Sin descripción disponible',
+        date: e.date,
+        venue: e.venue,
+        link: e.link,
+      }));
+    
+      // Le pedimos a Gemini que genere un mensaje natural, sin metadatos
+      let enriched;
+      try {
+        enriched = await enrichAnswer(
+          msg.text.body,
+          docs
+        );
+      } catch (err) {
+        console.error('⚠️ Error enriqueciendo con Gemini:', err);
+        // Fallback: mensaje simple si Gemini falla
+        enriched =
+          '🔎 Aquí tienes algunas opciones:\n' +
+          docs.map((d) => `• ${d.nombre}`).join('\n') +
+          '\n\n¿Quieres más detalles de algún plan?';
+      }
+    
+      await reply(enriched);
     }
     startInactivity(from, reply);
     return res.sendStatus(200);
