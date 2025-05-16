@@ -198,7 +198,7 @@ app.post('/webhook', async (req, res) => {
       if (!dicho) {
         await reply('😔 No encontré dichos por ahora.');
       } else {
-        await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.`);
+        await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.🔄 Para salir escribe: salir, regresar o buscar eventos.`);
       }
       startInactivity(from, reply);
       return res.sendStatus(200);
@@ -329,24 +329,8 @@ app.post('/webhook', async (req, res) => {
         const dicho = await getdichoByIndex(sessionData[from].dichoIndex);
         if (!dicho) {
           await reply('No hay más dichos por ahora. Escribe "salir" para regresar al menú.');
-          await sendButtons(from,
-       '¿Qué quieres hacer ahora?',
-        [
-        { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
-         { id: 'DICCIONARIO',  title: 'Abrir diccionario'     },
-         { id: 'DICHOS',       title: 'Dichos caleños'         }
-        ]
-     );
         } else {
-          await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.`);
-          await sendButtons(from,
-           '¿Qué quieres hacer ahora?',
-           [
-             { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
-             { id: 'DICCIONARIO',  title: 'Abrir diccionario'     },
-             { id: 'DICHOS',       title: 'Dichos caleños'         }
-           ]
-        );
+          await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.🔄 Para salir escribe: salir, regresar o buscar eventos.`);
         }
         startInactivity(from, reply);
         return res.sendStatus(200);
