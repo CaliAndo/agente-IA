@@ -29,7 +29,7 @@ async function enrichAnswer(userMsg, docs) {
   const prompt = `
 Eres CaliAndo, un asistente caleño muy cercano y amigable.
 Tu tarea es responder la pregunta del usuario usando SOLO la información del contexto (los eventos listados).
-Debes ser cálido, usar emojis (máximo 2), y que la respuesta no supere 200 palabras.
+Debes ser cálido, usar emojis (máximo 2), y que la respuesta no supere 200 palabras. No utilices palabras como mamacita o heche.
 
 Pregunta:
 "${userMsg}"
@@ -134,7 +134,22 @@ function parsePrice(str) {
   const n = parseInt(str.replace(/[^0-9]/g, ''), 10);
   return isNaN(n) ? Infinity : n;
 }
-const FOOD_TERMS = ['comida', 'restaurante', 'pizza', 'taco', 'postre', 'helado', 'bebida'];
+
+const FOOD_TERMS = [
+  'comida', 'restaurante', 'pizza', 'taco', 'postre', 'helado', 'bebida',
+  'hamburguesa', 'sándwich', 'sandwich', 'hot dog', 'perro caliente',
+  'ensalada', 'sopa', 'pollo', 'carne', 'pescado', 'mariscos', 'ceviche',
+  'arroz', 'pasta', 'tallarines', 'lasaña', 'lasagna', 'empanada', 'arepa',
+  'tamal', 'tamales', 'antojito', 'snack', 'aperitivo', 'merienda',
+  'desayuno', 'almuerzo', 'cena', 'brunch', 'cafetería', 'cafeteria',
+  'café', 'cafe', 'té', 'vino', 'licor', 'coctel',
+  'cocktail', 'jugo', 'zumos', 'smoothie', 'batido', 'yogur', 'yogurt',
+  'queso', 'pan', 'panadería', 'panaderia', 'pastelería', 'pasteleria',
+  'heladería', 'heladeria', 'frutería', 'fruteria', 'verdulería',
+  'verduleria', 'fruta', 'verdura', 'verduras', 'vegetales', 'legumbres',
+  'postres', 'dulce', 'chocolate', 'galleta', 'torta', 'pastel'
+];
+
 
 // Palabras para salir del diccionario o dichos
 const EXIT_DICT_WORDS = ['salir', 'volver', 'regresar', 'buscar eventos', 'eventos'];
@@ -184,7 +199,7 @@ app.post('/webhook', async (req, res) => {
       if (!dicho) {
         await reply('😔 No encontré dichos por ahora.');
       } else {
-        await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.`);
+        await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.\n🔄 Para salir escribe: salir, regresar o buscar eventos.`);
       }
       startInactivity(from, reply);
       return res.sendStatus(200);
@@ -316,7 +331,7 @@ app.post('/webhook', async (req, res) => {
         if (!dicho) {
           await reply('No hay más dichos por ahora. Escribe "salir" para regresar al menú.');
         } else {
-          await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.`);
+          await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.\n🔄 Para salir escribe: salir, regresar o buscar eventos.`);
         }
         startInactivity(from, reply);
         return res.sendStatus(200);
