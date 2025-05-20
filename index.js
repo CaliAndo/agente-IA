@@ -8,7 +8,7 @@ const fetch = require('node-fetch'); // para usar fetch en Node.js
 const { getDetallePorFuente } = require('./services/db/getDetalle');
 const { getLiveEvents } = require('./services/googleEvents');
 const { getMeaning } = require('./services/db/getDiccionario');
-const { getdichoByIndex } = require('./services/db/getDicho'); // función que debes tener creada
+const { getRandomDicho} = require('./services/db/getDicho'); // función que debes tener creada
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_KEY) throw new Error('🚨 Falta GEMINI_API_KEY en .env');
