@@ -204,7 +204,7 @@ app.post('/webhook', async (req, res) => {
 
     // 2) Extraer término limpio
     let term = text;
-    const m = term.match(/^(?:que es|qué es|qué significa)\s+(.+)$/);
+    const m = term.match(/^(?:que es|qué es|qué significa|Que es|Qué es|Qué significa)\s+(.+)$/);
     if (m) term = m[1].replace(/^una?\s+/, '').trim();
 
     // 3) Paginación "ver mas"
