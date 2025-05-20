@@ -195,11 +195,11 @@ app.post('/webhook', async (req, res) => {
       resetUser(from);
       sessionData[from].context = 'dichos';
       sessionData[from].dichoIndex = 0;
-      const dicho = await getdichoByIndex(0);
+      const dicho = await getRandomDicho(0);
       if (!dicho) {
         await reply('😔 No encontré dichos por ahora.');
       } else {
-        await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.\n🔄 Para salir escribe: salir, regresar o buscar eventos.`);
+        await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.`);
       }
       startInactivity(from, reply);
       return res.sendStatus(200);
@@ -209,33 +209,8 @@ app.post('/webhook', async (req, res) => {
   if (msg.type !== 'text') return res.sendStatus(200);
   const text = normalize(msg.text.body);
 
-  try {
-    // Filtro comida simple
-    if (FOOD_TERMS.some((t) => text.includes(t))) {
-      await reply('😔 Lo siento, no recomiendo comida. Puedo sugerir planes culturales o al aire libre.');
-      startInactivity(from, reply);
-      return res.sendStatus(200);
-    }
-
-    // Saludos: menú amigable con texto enriquecido
-    const GREET = ['hola', 'buenas', 'hey', 'holi', 'buenos días', 'buenas tardes'];
-    if (GREET.some((w) => text.includes(w))) {
-      resetUser(from);
-      await sendButtons(
-        from,
-        '¡Hola! Soy CaliAndo y estoy aquí para ayudarte a descubrir lo mejor de Cali. Cuéntame qué te gustaría hacer hoy: ¿te antoja algo cultural, quieres parchar con amigos o recorrer lugares nuevos? Estoy listo para mostrarte lo que esta ciudad sabrosa tiene para ti 💃',
-        [
-          { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
-          { id: 'DICCIONARIO', title: 'Abrir diccionario' },
-          { id: 'DICHOS', title: 'Dichos caleños' },
-        ]
-      );
-      startInactivity(from, reply);
-      return res.sendStatus(200);
-    }
-
-    // Contexto: DICCONARIO
-    if (sessionData[from]?.context === 'diccionario') {
+  //contecto DICCIONARIO
+  if (sessionData[from]?.context === 'diccionario') {
       if (EXIT_DICT_WORDS.some((word) => text.includes(word))) {
         resetUser(from);
         if (text.includes('evento')) {
@@ -294,6 +269,34 @@ app.post('/webhook', async (req, res) => {
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
+  
+  try {
+    // Filtro comida simple
+    if (FOOD_TERMS.some((t) => text.includes(t))) {
+      await reply('😔 Lo siento, no recomiendo comida. Puedo sugerir planes culturales o al aire libre.');
+      startInactivity(from, reply);
+      return res.sendStatus(200);
+    }
+
+    // Saludos: menú amigable con texto enriquecido
+    const GREET = ['hola', 'buenas', 'hey', 'holi', 'buenos días', 'buenas tardes'];
+    if (GREET.some((w) => text.includes(w))) {
+      resetUser(from);
+      await sendButtons(
+        from,
+        '¡Hola! Soy CaliAndo y estoy aquí para ayudarte a descubrir lo mejor de Cali. Cuéntame qué te gustaría hacer hoy: ¿te antoja algo cultural, quieres parchar con amigos o recorrer lugares nuevos? Estoy listo para mostrarte lo que esta ciudad sabrosa tiene para ti 💃',
+        [
+          { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
+          { id: 'DICCIONARIO', title: 'Abrir diccionario' },
+          { id: 'DICHOS', title: 'Dichos caleños' },
+        ]
+      );
+      startInactivity(from, reply);
+      return res.sendStatus(200);
+    }
+
+    // Contexto: DICCONARIO
+    
 
     // Contexto: DICHOS
     if (sessionData[from]?.context === 'dichos') {
@@ -331,7 +334,7 @@ app.post('/webhook', async (req, res) => {
         if (!dicho) {
           await reply('No hay más dichos por ahora. Escribe "salir" para regresar al menú.');
         } else {
-          await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.\n🔄 Para salir escribe: salir, regresar o buscar eventos.`);
+          await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.`);
         }
         startInactivity(from, reply);
         return res.sendStatus(200);
