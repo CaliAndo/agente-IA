@@ -8,7 +8,7 @@ const fetch = require('node-fetch'); // para usar fetch en Node.js
 const { getDetallePorFuente } = require('./services/db/getDetalle');
 const { getLiveEvents } = require('./services/googleEvents');
 const { getMeaning } = require('./services/db/getDiccionario');
-const { getRandomDicho} = require('./services/db/getDicho'); // función que debes tener creada
+const { getRandomDicho } = require('./services/db/getDicho'); // función que debes tener creada
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_KEY) throw new Error('🚨 Falta GEMINI_API_KEY en .env');
@@ -134,21 +134,8 @@ function parsePrice(str) {
   const n = parseInt(str.replace(/[^0-9]/g, ''), 10);
   return isNaN(n) ? Infinity : n;
 }
-const FOOD_TERMS = [
-  'comida', 'restaurante', 'pizza', 'taco', 'postre', 'helado', 'bebida',
-  'hamburguesa', 'sándwich', 'sandwich', 'hot dog', 'perro caliente',
-  'ensalada', 'sopa', 'pollo', 'carne', 'pescado', 'mariscos', 'ceviche',
-  'arroz', 'pasta', 'tallarines', 'lasaña', 'lasagna', 'empanada', 'arepa',
-  'tamal', 'tamales', 'antojito', 'snack', 'aperitivo', 'merienda',
-  'desayuno', 'almuerzo', 'cena', 'brunch', 'té', 'vino', 'licor', 'coctel',
-  'cocktail', 'jugo', 'zumos', 'smoothie', 'batido', 'yogur', 'yogurt',
-  'queso', 'pan', 'panadería', 'panaderia', 'pastelería', 'pasteleria',
-  'heladería', 'heladeria', 'frutería', 'fruteria', 'verdulería',
-  'verduleria', 'fruta', 'verdura', 'verduras', 'vegetales', 'legumbres',
-  'postres', 'dulce', 'chocolate', 'galleta', 'torta', 'pastel'
-];
 
-// Palabras para salir del diccionario o dichos
+const FOOD_TERMS = [/* ... tu lista ... */];
 const EXIT_DICT_WORDS = ['salir', 'volver', 'regresar', 'buscar eventos', 'eventos'];
 const EXIT_DICHOS_WORDS = EXIT_DICT_WORDS;
 
@@ -160,7 +147,7 @@ app.post('/webhook', async (req, res) => {
   const reply = (txt) => sendText(from, txt);
   clearTimers(from);
 
-  // Botones interactivos básicos (eventos vivo, diccionario, dichos)
+  // Botones iniciales
   if (msg.type === 'interactive' && msg.interactive.type === 'button_reply') {
     const id = msg.interactive.button_reply.id;
     if (id === 'VER_EVENTOS') {
@@ -168,12 +155,7 @@ app.post('/webhook', async (req, res) => {
       const list = await getLiveEvents('eventos en vivo');
       if (!list.length) await reply('😔 No encontré eventos cercanos.');
       else {
-        const out = list
-          .map(
-            (ev) =>
-              `• *${ev.title}*\n  📅 ${ev.date}\n  📍 ${ev.venue}${ev.description ? `\n  📝 ${ev.description}` : ''}\n  🔗 ${ev.link}`
-          )
-          .join('\n\n');
+        const out = list.map(formatEvent).join('\n\n');
         await reply(`🎫 Eventos en vivo:\n\n${out}`);
       }
       startInactivity(from, reply);
@@ -206,59 +188,57 @@ app.post('/webhook', async (req, res) => {
   if (msg.type !== 'text') return res.sendStatus(200);
   const text = normalize(msg.text.body);
 
-
-  //Contexto Diccionario
+  // Contexto: Diccionario
   if (sessionData[from]?.context === 'diccionario') {
-  // 1) Detectar salida del diccionario
-  if (EXIT_DICT_WORDS.some((word) => text.includes(word))) {
-    resetUser(from);
-    await sendButtons(from, '¿Qué quieres hacer ahora?', [
-      { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
-      { id: 'DICCIONARIO', title: 'Abrir diccionario' },
-      { id: 'DICHOS', title: 'Dichos caleños' },
-    ]);
-    startInactivity(from, reply);
-    return res.sendStatus(200);
-  }
-
-  // 2) Extraer solo el término, p.ej. “chuspa” de “qué es una chuspa”
-  let term = text;
-  const m = term.match(/^(?:que es|qué es|qué significa)\s+(.+)$/);
-  if (m) {
-    term = m[1].replace(/^una?\s+/, '').trim();
-  }
-
-  // 3) Paginación “ver mas”
-  if (term === 'ver mas' && Array.isArray(sessionData[from].dictPages)) {
-    const idx = sessionData[from].dictPageIdx + 1;
-    const pages = sessionData[from].dictPages;
-    if (idx < pages.length) {
-      sessionData[from].dictPageIdx = idx;
-      await reply(pages[idx]);
-      if (idx < pages.length - 1) await reply('💡 Envía "ver mas" para continuar...');
-    } else {
-      await reply('📜 No hay más páginas.');
+    // 1) Salir del diccionario
+    if (EXIT_DICT_WORDS.some(w => text.includes(w))) {
+      resetUser(from);
+      await sendButtons(from, '¿Qué quieres hacer ahora?', [
+        { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
+        { id: 'DICCIONARIO', title: 'Abrir diccionario' },
+        { id: 'DICHOS', title: 'Dichos caleños' },
+      ]);
+      startInactivity(from, reply);
+      return res.sendStatus(200);
     }
-    startInactivity(from, reply);
-    return res.sendStatus(200);
-  }
 
-      const significado = await getMeaning(text);
-      if (!significado) {
-        await reply(`😔 No encontré el significado de *${text}* en el diccionario.`);
+    // 2) Extraer término limpio
+    let term = text;
+    const m = term.match(/^(?:que es|qué es|qué significa)\s+(.+)$/);
+    if (m) term = m[1].replace(/^una?\s+/, '').trim();
+
+    // 3) Paginación "ver mas"
+    if (term === 'ver mas' && Array.isArray(sessionData[from].dictPages)) {
+      const idx = sessionData[from].dictPageIdx + 1;
+      const pages = sessionData[from].dictPages;
+      if (idx < pages.length) {
+        sessionData[from].dictPageIdx = idx;
+        await reply(pages[idx]);
+        if (idx < pages.length - 1) await reply('💡 Envía "ver mas" para continuar...');
       } else {
-        const pages = [];
-        for (let i = 0; i < significado.length; i += 800) {
-          pages.push(significado.slice(i, i + 800));
-        }
-        sessionData[from].dictPages = pages;
-        sessionData[from].dictPageIdx = 0;
-        await reply(`📚 *${text}*:\n\n${pages[0]}`);
-        if (pages.length > 1) await reply('💡 Envía "ver mas" para continuar...');
+        await reply('📜 No hay más páginas.');
       }
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
+
+    // 4) Buscar significado usando el término limpio
+    const significado = await getMeaning(term);
+    if (!significado) {
+      await reply(`😔 No encontré el significado de *${term}* en el diccionario.`);
+    } else {
+      const pages = [];
+      for (let i = 0; i < significado.length; i += 800) {
+        pages.push(significado.slice(i, i + 800));
+      }
+      sessionData[from].dictPages = pages;
+      sessionData[from].dictPageIdx = 0;
+      await reply(`📚 *${term}*:\n\n${pages[0]}`);
+      if (pages.length > 1) await reply('💡 Envía "ver mas" para continuar...');
+    }
+    startInactivity(from, reply);
+    return res.sendStatus(200);
+  }
   
   try {
     // Filtro comida simple
