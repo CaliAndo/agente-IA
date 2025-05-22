@@ -11,7 +11,7 @@ async function getRandomDicho() {
     LIMIT 1
   `;
   const { rows } = await pool.query(query);
-  return rows[0] || null; // { dicho: "...", significado: "..." } o null si no hay filas
+  return rows[0] || null;
 }
 
 module.exports = { getRandomDicho };

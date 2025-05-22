@@ -135,6 +135,17 @@ function parsePrice(str) {
   return isNaN(n) ? Infinity : n;
 }
 
+function formatEvent(evento) {
+  return (
+    `• *${evento.title || evento.nombre}*\n` +
+    `📅 ${evento.date || 'Fecha por confirmar'}\n` +
+    `📍 ${evento.venue || 'Lugar por confirmar'}\n` +
+    (evento.description ? `📝 ${evento.description}\n` : '') +
+    (evento.link ? `🔗 ${evento.link}` : '')
+  );
+}
+
+
 const FOOD_TERMS = [/* ... tu lista ... */];
 const EXIT_DICT_WORDS = ['salir', 'volver', 'regresar', 'buscar eventos', 'eventos'];
 const EXIT_DICHOS_WORDS = EXIT_DICT_WORDS;
@@ -173,8 +184,7 @@ app.post('/webhook', async (req, res) => {
     if (id === 'DICHOS') {
       resetUser(from);
       sessionData[from].context = 'dichos';
-      sessionData[from].dichoIndex = 0;
-      const dicho = await getRandomDicho(0);
+      const dicho = await getRandomDicho();
       if (!dicho) {
         await reply('😔 No encontré dichos por ahora.');
       } else {
@@ -299,16 +309,15 @@ app.post('/webhook', async (req, res) => {
       }
 
       if (text === 'otro dicho') {
-        sessionData[from].dichoIndex++;
-        const dicho = await getdichoByIndex(sessionData[from].dichoIndex);
-        if (!dicho) {
-          await reply('No hay más dichos por ahora. Escribe "salir" para regresar al menú.');
-        } else {
-          await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.`);
-        }
-        startInactivity(from, reply);
-        return res.sendStatus(200);
-      }
+  const dicho = await getRandomDicho();
+  if (!dicho) {
+    await reply('😔 No encontré más dichos por ahora.');
+  } else {
+    await reply(`📜 *${dicho.dicho}*\n\n${dicho.significado}\n\nEscribe "otro dicho" para más.`);
+  }
+  startInactivity(from, reply);
+  return res.sendStatus(200);
+}
 
       await reply('Para seguir con los dichos escribe "otro dicho", o escribe "salir" para regresar al menú.');
       startInactivity(from, reply);
