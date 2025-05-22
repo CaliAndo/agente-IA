@@ -8,17 +8,18 @@ if (!SERPAPI_KEY) {
   throw new Error('🚨 Define SERPAPI_KEY en tu .env');
 }
 
-async function getLiveEvents(q = 'Eventos en Cali', location = "Cali, Valle Del Cauca, Colombia", limit = 5) {
+async function getLiveEvents() {
   try {
-    console.log('🔎 getLiveEvents:', { q, location, limit });
-
-    const params = {
-      engine: 'google_events',
-      api_key: SERPAPI_KEY,
-      q,
-      location,
-      hl: 'es',
-    };
+    const response = await axios.get('https://serpapi.com/search.json', {
+          params: {
+            engine: 'google',
+            q: "Eventos en Cali",
+            location: 'Cali, Valle del Cauca, Colombia',
+            hl: 'es',
+            gl: 'co',
+            api_key: apiKey,
+          }
+        });
 
     const url = `https://serpapi.com/search.json?${qs.stringify(params)}`;
     const { data } = await axios.get(url);
