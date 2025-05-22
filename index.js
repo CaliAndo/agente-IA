@@ -389,16 +389,41 @@ app.post('/webhook', async (req, res) => {
     if (sessionData[from]?.context === 'resultados') {
       const cache = eventosCache[from];
       if (text === 'ver mas') {
+        const cache = eventosCache[from];
         cache.page = (cache.page || 0) + 1;
         const slice = cache.lista.slice(cache.page * 5, cache.page * 5 + 5);
-        await reply(
-          slice.length
-            ? `🔎 Más recomendaciones:\n\n${slice.map((e) => `• ${e.nombre}`).join('\n')}\n\nEscribe el nombre o "ver mas".`
-            : '📜 No hay más resultados.'
+
+        if (!slice.length) {
+          await reply('📜 No hay más resultados.');
+          startInactivity(from, reply);
+          return res.sendStatus(200);
+        }
+
+        const detalles = await Promise.all(
+          slice.map(e => getDetallePorFuente(e.fuente, e.referencia_id))
         );
+
+        const mensaje = detalles
+          .map((d) => {
+            if (!d) return null;
+            const links = [];
+            if (d.enlace) links.push(`🔗 ${d.enlace}`);
+            if (d.pagina_web) links.push(`🌐 ${d.pagina_web}`);
+            if (d.redes_sociales) links.push(`📱 ${d.redes_sociales}`);
+            return (
+              `✨ *${d.nombre}*` +
+              (d.descripcion ? `\n📝 ${d.descripcion}` : '') +
+              (links.length ? `\n${links.join('\n')}` : '')
+            );
+          })
+          .filter(Boolean)
+          .join('\n\n');
+
+        await reply(`🔎 Más recomendaciones:\n\n${mensaje}\n\nEscribe el nombre o "ver más".`);
         startInactivity(from, reply);
         return res.sendStatus(200);
       }
+
       const fuseRes = new Fuse(cache.lista, { keys: ['nombre'], threshold: 0.3 }).search(text);
       if (fuseRes.length) {
         const elegido = fuseRes[0].item;
@@ -436,28 +461,28 @@ app.post('/webhook', async (req, res) => {
       else {
         eventosCache[from] = { lista: dataFB.resultados, page: 0 };
         const primerosDetalles = await Promise.all(
-        dataFB.resultados.slice(0, 5).map(e =>
-          getDetallePorFuente(e.fuente, e.referencia_id)
-        )
-      );
+      dataFB.resultados.slice(0, 5).map(e =>
+        getDetallePorFuente(e.fuente, e.referencia_id)
+      )
+    );
 
-      const primeros = primerosDetalles
-        .map((d) => {
-          if (!d) return null;
+    const primeros = primerosDetalles
+      .map((d) => {
+        if (!d) return null;
 
-          let links = [];
-          if (d.enlace) links.push(`🔗 ${d.enlace}`);
-          if (d.pagina_web) links.push(`🌐 ${d.pagina_web}`);
-          if (d.redes_sociales) links.push(`📱 ${d.redes_sociales}`);
+        let links = [];
+        if (d.enlace) links.push(`🔗 ${d.enlace}`);
+        if (d.pagina_web) links.push(`🌐 ${d.pagina_web}`);
+        if (d.redes_sociales) links.push(`📱 ${d.redes_sociales}`);
 
-          return (
-            `✨ *${d.nombre}*` +
-            (d.descripcion ? `\n📝 ${d.descripcion}` : '') +
-            (links.length ? `\n${links.join('\n')}` : '')
-          );
-        })
-        .filter(Boolean)
-        .join('\n\n');
+        return (
+          `✨ *${d.nombre}*` +
+          (d.descripcion ? `\n📝 ${d.descripcion}` : '') +
+          (links.length ? `\n${links.join('\n')}` : '')
+        );
+      })
+      .filter(Boolean)
+      .join('\n\n');
 
 
         const mensaje = `¡Hola! 😊 Aquí te dejo algunas recomendaciones que seguro te van a encantar:\n\n${primeros}\n
