@@ -414,16 +414,16 @@ app.post('/webhook', async (req, res) => {
       else {
         eventosCache[from] = { lista: dataFB.resultados, page: 0 };
         const primeros = dataFB.resultados
-          .slice(0, 5)
-          .map((e) => {
-            return (
-              `✨ *${e.nombre}*\n` +
-              `📅 Fecha: ${e.date || 'Por confirmar'}\n` +
-              `📍 Lugar: ${e.venue || 'Por confirmar'}\n` +
-              (e.link ? `🔗 Más info: ${e.link}\n` : '')
-            );
-          })
-          .join('\n');
+        .slice(0, 5)
+        .map((e) => {
+          return (
+            `✨ *${e.nombre}*` +
+            (e.descripcion || e.description ? `\n📝 ${e.descripcion || e.description}` : '') +
+            (e.link ? `\n🔗 ${e.link}` : '')
+          );
+        })
+        .join('\n\n');
+
 
         const mensaje = `¡Hola! 😊 Aquí te dejo algunas recomendaciones que seguro te van a encantar:\n\n${primeros}\n
 ¿Quieres que te cuente más de algún plan? Solo escribe el nombre o dime "ver más". ¡Estoy aquí para ayudarte! 🚀`;
