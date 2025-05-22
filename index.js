@@ -363,6 +363,27 @@ app.post('/webhook', async (req, res) => {
       startInactivity(from, reply);
       return res.sendStatus(200);
     }
+    
+    if (sessionData[from]?.context === 'eventos_vivo') {
+  if (text === 'ver mas') {
+    const cache = eventosCache[from];
+    cache.page = (cache.page || 0) + 1;
+    const slice = cache.lista.slice(cache.page * 5, cache.page * 5 + 5);
+
+    if (!slice.length) {
+      await reply('📜 No hay más eventos en vivo por ahora.');
+    } else {
+      await reply(slice.map(formatEvent).join('\n\n'));
+
+      if (cache.page * 5 + 5 < cache.lista.length) {
+        await reply('💡 Puedes escribir "ver más" para seguir viendo eventos.');
+      }
+    }
+    startInactivity(from, reply);
+    return res.sendStatus(200);
+  }
+}
+
 
     // Selección y enriquecimiento con Gemini Flash
     if (sessionData[from]?.context === 'resultados') {
