@@ -8,34 +8,31 @@ if (!SERPAPI_KEY) {
   throw new Error('🚨 Define SERPAPI_KEY en tu .env');
 }
 
-async function getLiveEvents() {
+async function getLiveEvents(limit = 5) {
   try {
-    const response = await axios.get('https://serpapi.com/search.json', {
-          params: {
-            engine: 'google',
-            q: "Eventos en Cali",
-            location: 'Cali, Valle del Cauca, Colombia',
-            hl: 'es',
-            gl: 'co',
-            api_key: apiKey,
-          }
-        });
+    const params = {
+      engine: 'google_events',
+      api_key: SERPAPI_KEY,
+      q: 'Eventos en Cali',
+      location: DEFAULT_LOCATION,
+      hl: 'es',
+      no_cache: true,
+      htichips: 'date:today',
+    };
 
     const url = `https://serpapi.com/search.json?${qs.stringify(params)}`;
     const { data } = await axios.get(url);
 
     const eventosRaw = data.events_results || [];
 
-    // Filtra eventos cuya dirección mencione "Cali"
     const eventosFiltrados = eventosRaw.filter(ev => {
       const dir = Array.isArray(ev.address)
         ? ev.address.join(', ').toLowerCase()
         : (ev.address || '').toLowerCase();
-
-      return dir.includes('cali');
+      const venue = (ev.venue?.name || '').toLowerCase();
+      return dir.includes('cali') || venue.includes('cali');
     });
 
-    // Quita duplicados por título
     const vistos = new Set();
     const eventosUnicos = eventosFiltrados.filter(ev => {
       if (vistos.has(ev.title)) return false;
@@ -43,7 +40,6 @@ async function getLiveEvents() {
       return true;
     });
 
-    // Mapea los resultados
     return eventosUnicos.slice(0, limit).map(ev => ({
       title: ev.title,
       date: ev.date?.when || ev.date?.start_date || 'Fecha desconocida',
