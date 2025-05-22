@@ -512,14 +512,21 @@ app.post('/webhook', async (req, res) => {
       sessionData[from] = { context: 'resultados' };
     
       // Preparamos el contexto para Gemini: convertimos cada plan en un mini-doc
-      const docs = data.resultados.slice(0, 5).map((e) => ({
-        nombre: e.nombre,
-        descripcion: e.description || e.descripcion || 'Sin descripción disponible',
-        date: e.date,
-        venue: e.venue,
-        link: e.link,
-      }));
-    
+          const detalles = await Promise.all(
+          data.resultados.slice(0, 5).map((e) =>
+            getDetallePorFuente(e.fuente, e.referencia_id)
+          )
+        );
+
+        const docs = detalles
+          .filter(Boolean)
+          .map((d) => ({
+            nombre: d.nombre,
+            descripcion: d.descripcion || 'Sin descripción disponible',
+            date: null,
+            venue: null,
+            link: d.enlace || d.pagina_web || d.redes_sociales || null,
+  }));
       // Le pedimos a Gemini que genere un mensaje natural, sin metadatos
       let enriched;
       try {
