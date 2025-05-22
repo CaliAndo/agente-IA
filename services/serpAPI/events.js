@@ -19,27 +19,39 @@ async function fetchAndSaveEventos() {
 
     const response = await axios.get('https://serpapi.com/search.json', {
       params: {
-        engine: 'google_events',
-        q: 'Eventos en Cali ',
-        location: 'Cali,Valle Del Cauca,Colombia',
-        location_used: "Cali,Valle del Cauca,Colombia",
+        engine: 'google',
+        q: 'Eventos en Cali',
+        location: 'Cali, Valle Del Cauca, Colombia',
         hl: 'es',
         gl: 'co',
-        api_key: apiKey
-      }
+        api_key: apiKey,
+      },
     });
 
-    const eventos = response.data.events_results || [];
+    const rawEventos = response.data.events_results || [];
+
+    // Filtramos solo los que claramente tienen dirección en Cali
+    const eventos = rawEventos.filter(ev => {
+      const address = Array.isArray(ev.address) ? ev.address.join(', ') : ev.address || '';
+      return address.toLowerCase().includes('cali');
+    });
+
+    if (!eventos.length) {
+      console.log('⚠️ No se encontraron eventos relevantes para Cali.');
+      return;
+    }
+
     let insertados = 0;
 
     for (const ev of eventos) {
-      const nombre = ev.title || 'Sin título';
-      const descripcion = ev.description || '';
-      const fecha = ev.date?.start_date ? new Date(ev.date.start_date) : null;
-      const ubicacion = ev.address || '';
-      const categoria = 'evento';
+      const nombre = ev.title?.trim() || 'Sin título';
+      const descripcion = ev.description?.trim() || '';
+      const fechaTexto = ev.date?.start_date || null;
+      const fecha = fechaTexto ? new Date(`${fechaTexto} ${new Date().getFullYear()}`) : null;
+      const ubicacion = Array.isArray(ev.address) ? ev.address.join(', ') : ev.address || '';
+      const link = ev.link || null;
 
-      // Verificar si el evento ya existe
+      // Verificar si el evento ya existe por nombre
       const res = await pool.query('SELECT id FROM eventos WHERE nombre = $1', [nombre]);
       if (res.rowCount > 0) continue;
 
@@ -47,17 +59,27 @@ async function fetchAndSaveEventos() {
       const embedding = await generarEmbedding(texto);
 
       const insertQuery = `
-        INSERT INTO eventos (nombre, descripcion, fecha, ubicacion, categoria, fuente, embedding)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO eventos (nombre, descripcion, fecha, ubicacion, categoria, fuente, enlace, embedding)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       `;
 
-      await pool.query(insertQuery, [nombre, descripcion, fecha, ubicacion, categoria, fuente, embedding]);
+      await pool.query(insertQuery, [
+        nombre,
+        descripcion,
+        fecha,
+        ubicacion,
+        'evento',
+        fuente,
+        link,
+        embedding,
+      ]);
+
       insertados++;
     }
 
     console.log(`✅ ${insertados} eventos insertados desde SerpAPI.\n`);
   } catch (error) {
-    console.error('❌ Error al obtener eventos de SerpAPI:', error.message);
+    console.error('❌ Error al obtener o guardar eventos de SerpAPI:', error.message);
   }
 }
 

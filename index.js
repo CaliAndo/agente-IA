@@ -374,7 +374,6 @@ app.post('/webhook', async (req, res) => {
       await reply('📜 No hay más eventos en vivo por ahora.');
     } else {
       await reply(slice.map(formatEvent).join('\n\n'));
-
       if (cache.page * 5 + 5 < cache.lista.length) {
         await reply('💡 Puedes escribir "ver más" para seguir viendo eventos.');
       }
