@@ -8,9 +8,10 @@ if (!SERPAPI_KEY) {
   throw new Error('🚨 Define SERPAPI_KEY en tu .env');
 }
 
-async function getLiveEvents(q, location = DEFAULT_LOCATION, limit = 5) {
+async function getLiveEvents(q = 'Eventos en Cali', location = "Cali, Valle Del Cauca, Colombia", limit = 5) {
   try {
     console.log('🔎 getLiveEvents:', { q, location, limit });
+
     const params = {
       engine: 'google_events',
       api_key: SERPAPI_KEY,
@@ -18,22 +19,38 @@ async function getLiveEvents(q, location = DEFAULT_LOCATION, limit = 5) {
       location,
       hl: 'es',
     };
+
     const url = `https://serpapi.com/search.json?${qs.stringify(params)}`;
     const { data } = await axios.get(url);
 
-    console.log('📬 eventos recibidos:', data.events_results?.length);
+    const eventosRaw = data.events_results || [];
 
-    if (!Array.isArray(data.events_results)) return [];
+    // Filtra eventos cuya dirección mencione "Cali"
+    const eventosFiltrados = eventosRaw.filter(ev => {
+      const dir = Array.isArray(ev.address)
+        ? ev.address.join(', ').toLowerCase()
+        : (ev.address || '').toLowerCase();
 
-    // Mapea los eventos
-    return data.events_results.slice(0, limit).map(ev => ({
+      return dir.includes('cali');
+    });
+
+    // Quita duplicados por título
+    const vistos = new Set();
+    const eventosUnicos = eventosFiltrados.filter(ev => {
+      if (vistos.has(ev.title)) return false;
+      vistos.add(ev.title);
+      return true;
+    });
+
+    // Mapea los resultados
+    return eventosUnicos.slice(0, limit).map(ev => ({
       title: ev.title,
       date: ev.date?.when || ev.date?.start_date || 'Fecha desconocida',
-      venue: ev.venue?.name || ev.address?.join(', ') || 'Lugar desconocido',
+      venue: ev.venue?.name || (Array.isArray(ev.address) ? ev.address.join(', ') : ev.address) || 'Lugar desconocido',
       description: ev.description || 'Descripción no disponible',
-      link: ev.link || 'No disponible',
-      mapLink: ev.event_location_map?.link || 'No disponible',
-      thumbnail: ev.thumbnail || 'No disponible'
+      link: ev.link || '',
+      mapLink: ev.event_location_map?.link || '',
+      thumbnail: ev.thumbnail || '',
     }));
   } catch (err) {
     console.error('❌ Error en getLiveEvents:', err.message);
