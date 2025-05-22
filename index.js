@@ -285,18 +285,19 @@ app.post('/webhook', async (req, res) => {
         if (text.includes('evento')) {
           await reply('🔍 Ok, buscando eventos para ti...');
           const list = await getLiveEvents('eventos en vivo');
-          if (!list.length) await reply('😔 No encontré eventos cercanos.');
-          else {
-            const out = list
-              .map(
-                (ev) =>
-                  `• *${ev.title}*\n  📅 ${ev.date}\n  📍 ${ev.venue}${ev.description ? `\n  📝 ${ev.description}` : ''}\n  🔗 ${ev.link}`
-              )
-              .join('\n\n');
-            await reply(`🎫 Eventos en vivo:\n\n${out}`);
-          }
-          startInactivity(from, reply);
-          return res.sendStatus(200);
+            if (!list.length) {
+              await reply('😔 No encontré eventos cercanos.');
+            } else {
+              eventosCache[from] = { lista: list, page: 0 };
+              sessionData[from] = { context: 'eventos_vivo' };
+
+              const firstPage = list.slice(0, 5).map(formatEvent).join('\n\n');
+              await reply(`🎫 Eventos en vivo:\n\n${firstPage}`);
+
+              if (list.length > 5) {
+                await reply('💡 Escribe "ver más" para ver más eventos en vivo.');
+              }
+            }
         } else {
           await sendButtons(from, '¿Qué quieres hacer ahora?', [
             { id: 'VER_EVENTOS', title: 'Ver eventos en vivo' },
