@@ -19,8 +19,16 @@ async function getLiveEvents() {
 
     const url = `https://serpapi.com/search.json?${qs.stringify(params)}`;
     const { data } = await axios.get(url);
+    const eventos = data.events_results || [];
 
-    return data.events_results || [];
+    return eventos.map(ev => ({
+      title: ev.title || 'Sin título',
+      date: ev.date?.when || ev.date?.start_date || 'Fecha desconocida',
+      venue:
+        ev.venue?.name ||
+        (Array.isArray(ev.address) ? ev.address.join(', ') : ev.address) ||
+        'Lugar desconocido',
+    }));
   } catch (err) {
     console.error('❌ Error en getLiveEvents:', err.message);
     return [];
