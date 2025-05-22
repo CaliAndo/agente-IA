@@ -20,7 +20,7 @@ async function fetchAndSaveEventos() {
     const response = await axios.get('https://serpapi.com/search.json', {
       params: {
         engine: 'google_events',
-        q: 'eventos en Cali',
+        q: 'eventos en Cali Colombia location:Cali',
         hl: 'es',
         gl: 'co',
         api_key: apiKey
