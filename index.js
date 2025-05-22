@@ -435,15 +435,28 @@ app.post('/webhook', async (req, res) => {
       if (!dataFB.ok || !dataFB.resultados.length) await reply('😔 No encontré nada.');
       else {
         eventosCache[from] = { lista: dataFB.resultados, page: 0 };
-        const primeros = dataFB.resultados
-        .slice(0, 5)
-        .map((e) => {
+        const primerosDetalles = await Promise.all(
+        dataFB.resultados.slice(0, 5).map(e =>
+          getDetallePorFuente(e.fuente, e.referencia_id)
+        )
+      );
+
+      const primeros = primerosDetalles
+        .map((d) => {
+          if (!d) return null;
+
+          let links = [];
+          if (d.enlace) links.push(`🔗 ${d.enlace}`);
+          if (d.pagina_web) links.push(`🌐 ${d.pagina_web}`);
+          if (d.redes_sociales) links.push(`📱 ${d.redes_sociales}`);
+
           return (
-            `✨ *${e.nombre}*` +
-            (e.descripcion || e.description ? `\n📝 ${e.descripcion || e.description}` : '') +
-            (e.link ? `\n🔗 ${e.link}` : '')
+            `✨ *${d.nombre}*` +
+            (d.descripcion ? `\n📝 ${d.descripcion}` : '') +
+            (links.length ? `\n${links.join('\n')}` : '')
           );
         })
+        .filter(Boolean)
         .join('\n\n');
 
 
