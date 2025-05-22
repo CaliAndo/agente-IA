@@ -28,6 +28,8 @@ async function getLiveEvents() {
         ev.venue?.name ||
         (Array.isArray(ev.address) ? ev.address.join(', ') : ev.address) ||
         'Lugar desconocido',
+      description: ev.description || 'Descripción no disponible',
+      link: ev.link || '',
     }));
   } catch (err) {
     console.error('❌ Error en getLiveEvents:', err.message);
